@@ -1,0 +1,744 @@
+---
+title: "Milo - simulations"
+output: html_notebook
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(edgeR)
+library(igraph)
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(irlba)
+library(ggthemes)
+library(ggsci)
+library(mvtnorm)
+library(umap)
+library(dplyr)
+
+# BiocManager::install("cydar")
+library(cydar)
+library(dyntoy)
+```
+
+Using Mike's code from [here](https://www.dropbox.com/s/zr2znr0tftx59rv/graph_simulations.nb.html?dl=1)
+
+## Testing with random sampling
+
+### Simulate linear trajectory
+
+Using [`dyntoy`](https://github.com/dynverse/dyntoy), I simulate linear trajectory (no branches) with 1500 cells and 5 main states (milestones).
+
+```{r, warning=FALSE, message=FALSE}
+dataset <- generate_dataset(
+  model = model_linear(num_milestones = 5),
+  num_cells = 1500,
+  num_features = 1000
+)
+
+sim2.gex <- as.matrix(dataset$expression)
+sim2.branches <- dataset$prior_information$groups_id
+```
+
+### Build graph
+
+```{r, warning=FALSE, message=FALSE}
+## Run PCA
+sim2.pca <- prcomp_irlba(sim2.gex, n=50, scale.=TRUE, center=TRUE)
+
+## Build KNN graph
+set.seed(42)
+sim2.knn <- buildKNNGraph(x=sim2.pca$x[, c(1:30)], k=21, d=NA, transposed=TRUE)
+
+## Run UMAP
+stem.ta.umap <- umap(sim2.pca$x[, c(1:30)],
+                     n_components=2,
+                     n_neighbors=21, metric='euclidean',
+                     init='random', min_dist=0.1)
+
+dyn.df <- data.frame(UMAP1=stem.ta.umap$layout[,1], UMAP2=stem.ta.umap$layout[,2], 
+           cell_id=rownames(sim2.gex))
+dyn.df <- dyn.df %>% left_join(sim2.branches)
+dyn.df %>%
+  ggplot(aes(UMAP1, UMAP2, color=group_id)) +
+  geom_point()
+  
+
+```
+
+### Simulate conditions
+
+Assign different proportions of cells to group A and group B along the linear trajectory (with different proportion for cells assigned to each milestone).
+
+```{r, warning=FALSE, message=FALSE}
+## Simulate conditions
+set.seed(42)
+
+n_groups <- length(unique(dyn.df$group_id))
+p_vec <- seq(0.1,0.9, length.out = n_groups)
+a.cells <- c()
+for (i in 1:n_groups) {
+  g <- sort(unique(dyn.df$group_id))[i]
+  p <- p_vec[i] 
+  m.A <- sample(dyn.df$cell_id[dyn.df$group_id==g], 
+                size=floor(sum(dyn.df$group_id==g)*p))
+  a.cells <- c(a.cells, m.A)
+}
+
+dyn.df <- dyn.df %>% dplyr::mutate(condition = ifelse(cell_id %in% a.cells, "A", 'B')) 
+
+## Simulate replicates
+dyn.df <- dyn.df %>%
+  group_by(group_id) %>%
+  dplyr::mutate(replicate=c(rep("R1", floor(n()*0.3)), 
+                            rep("R2", floor(n()*0.3)), 
+                            rep("R3", n() - 2*(floor(n()*0.3))))
+  ) 
+
+## Add sample name (condition + replicate)
+dyn.df$sample <- paste(dyn.df$condition, dyn.df$replicate, sep="_")
+## Add vertex id (for counts)
+dyn.df$Vertex <- as.vector(V(sim2.knn))
+
+ggplot(dyn.df, aes(UMAP1, UMAP2, color=condition)) + geom_point(size=0.5) +
+  theme_clean() +
+  facet_wrap(condition~.)
+```
+
+
+### Test for DA
+
+```{r, warning=FALSE, message=FALSE}
+quant_neighbourhood <- function(graph, meta, sample.column='Sample', sample.vertices=0.25){
+  # Count conditions
+  random.vertices <- sample(V(graph), size=floor(sample.vertices*length(V(graph))))
+vertex.list <- sapply(1:length(random.vertices), FUN=function(X) neighbors(graph, v=random.vertices[X]))
+  
+
+count.matrix <- matrix(0L, ncol=length(unique(meta[, sample.column, drop=TRUE])), nrow=length(vertex.list))
+colnames(count.matrix) <- unique(meta[, sample.column, drop=TRUE])
+
+for(x in seq_along(1:length(vertex.list))){
+    v.x <- vertex.list[[x]]
+    for(i in seq_along(1:length(unique(meta[, sample.column, drop=TRUE])))){
+      i.s <- unique(meta[, sample.column, drop=TRUE])[i]
+      i.s.vertices <- intersect(v.x, meta[meta[, sample.column, drop=TRUE] == i.s, ]$Vertex)
+      
+      count.matrix[x, i] <- length(i.s.vertices)
+    }
+  }
+  rownames(count.matrix) <- random.vertices
+  return(list(count.matrix, vertex.list, random.vertices))
+}
+
+graph_spatialFDR <- function(neighborhoods, graph, pvalues, connectivity='vertex', pca=NULL){
+  # input a set of neighborhoods as a list of graph vertices
+  # the input graph and the unadjusted GLM p-values
+  #' neighborhoods: list of vertices and their respective neighborhoods
+  #' graph: input kNN graph
+  #' pvalues: a vector of pvalues in the same order as the neighborhood indices
+  #' connectivity: character - edge or vertex to calculate neighborhood connectivity or distance to use average Euclidean distance
+  #' pca: matrix of PCs to calculate Euclidean distances, only required when connectivity == distance
+  # Discarding NA pvalues.
+  haspval <- !is.na(pvalues)
+  if (!all(haspval)) {
+      coords <- coords[haspval, , drop=FALSE]
+      pvalues <- pvalues[haspval]
+  }
+  # define the subgraph for each neighborhood then calculate the vertex connectivity for each
+  # this latter computation is quite slow - can it be sped up?
+  subgraphs <- lapply(1:length(neighborhoods[haspval]),
+                         FUN=function(X) induced_subgraph(graph, neighborhoods[haspval][[X]]))
+  # now loop over these sub-graphs to calculate the connectivity - this seems a little slow...
+  if(connectivity == "vertex"){
+    connect <- lapply(subgraphs, FUN=function(EG) vertex_connectivity(EG))
+  } else if(connectivity == "edge"){
+    connect <- lapply(subgraphs, FUN=function(EG) edge_connectivity(EG))
+  } else if(connectivity == "distance"){
+    if(!is.null(pca)){
+      connect <- lapply(1:length(neighborhoods[haspval]),
+                        FUN=function(PG) {
+                          x.pcs <- pca[neighborhoods[haspval][[PG]], ]
+                          x.euclid <- as.matrix(dist(x.pcs))
+                          x.distdens <- 1/mean(x.euclid[lower.tri(x.euclid, diag=FALSE)])
+                        return(x.distdens)})
+    } else{
+      errorCondition("A matrix of PCs is required to calculate distances")  
+    }
+  }else{
+    errorCondition("connectivity option not recognised - must be either edge or vertex")
+  }
+  # use 1/connectivity as the weighting for the weighted BH adjustment from Cydar
+  w <- 1/unlist(connect)
+  w[is.infinite(w)] <- 0
+  # Computing a density-weighted q-value.
+  o <- order(pvalues)
+  pvalues <- pvalues[o]
+  w <- w[o]
+  adjp <- numeric(length(o))
+  adjp[o] <- rev(cummin(rev(sum(w)*pvalues/cumsum(w))))
+  adjp <- pmin(adjp, 1)
+  if (!all(haspval)) {
+    refp <- rep(NA_real_, length(haspval))
+    refp[haspval] <- adjp
+    adjp <- refp
+    }
+  return(adjp)
+}
+
+set.seed(400)
+
+## Count A and B cells in neighboorhood of sampled cell
+n.hood <- 0.1 # Fraction of sampled cells
+neigh.out <- quant_neighbourhood(graph=sim2.knn, meta=dyn.df, sample.column='sample', sample.vertices=n.hood)
+
+sim2.counts <- neigh.out[[1]]
+vertex.list <- neigh.out[[2]]
+random.vertices <- neigh.out[[3]]
+
+## Make model matrix for testing
+sample.meta <- data.frame("Condition"=c(rep("A", 3), rep("B", 3)),
+                          "Replicate"=rep(c("R1", "R2", "R3"), 2))
+sample.meta$Sample <- paste(sample.meta$Condition, sample.meta$Replicate, sep="_")
+rownames(sample.meta) <- sample.meta$Sample
+sim2.model <- model.matrix(~ 0 + Condition, data=sample.meta)
+
+## Test with edgeR
+sim2.dge <- DGEList(sim2.counts[, rownames(sim2.model)], lib.size=log(colSums(sim2.counts)))
+sim2.dge <- estimateDisp(sim2.dge, sim2.model)
+sim2.fit <- glmQLFit(sim2.dge, sim2.model, robust=TRUE)
+sim2.contrast <- makeContrasts(ConditionA - ConditionB, levels=sim2.model)
+sim2.res <- glmQLFTest(sim2.fit, contrast=sim2.contrast)
+sim2.res <- as.data.frame(topTags(glmQLFTest(sim2.fit, coef=1), sort.by='none', n=Inf))
+sim2.res$Sig <- as.factor(as.numeric(sim2.res$PValue <= 0.05))
+sim2.res$Neighbourhood <- as.numeric(rownames(sim2.res))
+
+## Run spatialFDR adapted from cydar
+sim2.spatialfdr <- graph_spatialFDR(neighborhoods=vertex.list, graph=sim2.knn, connectivity="edge", pvalues=sim2.res$PValue)
+
+```
+
+```{r, warning=FALSE, message=FALSE, echo=TRUE}
+fdr.df <- data.frame(Vertex=as.numeric(rownames(sim2.res)), p=sim2.res$PValue, adjp=sim2.spatialfdr, logFC=sim2.res$logFC, Sig=sim2.res$Sig)
+
+dyn.df %>%
+  left_join(fdr.df) %>%
+  dplyr::arrange(p) %>%
+  ggplot(aes(UMAP1, UMAP2, 
+             # color= - log10(adjp),
+            # color= - log10(p),
+             color = logFC
+             )) +
+  geom_point() +
+  geom_point(data=. %>% dplyr::filter(!is.na(adjp))) +
+  # geom_point(size=3, data=. %>% dplyr::filter(Vertex==197), color="red") +
+  scale_color_gradient2(midpoint = 0) 
+
+```
+
+The test seems to miss DA in M1 and M5 groups, possibly because of small sampling from these small groups? 
+
+```{r, warning=FALSE, message=FALSE}
+dyn.df %>%
+   left_join(fdr.df) %>%
+  dplyr::filter(!is.na(logFC)) %>%
+  ggplot(aes(logFC, -log10(adjp), shape=Sig, color=group_id)) +
+  geom_point() +
+  facet_wrap(group_id~.)
+```
+
+## Refined sampling scheme
+
+I adopt the refined sampling strategy applied in [Wishbone](https://www.nature.com/articles/nbt.3569#Sec12), and adapted from [here](https://www.nature.com/articles/nmeth.3545). Briefly, to avoid selecting outliers with random sampling, I first randomly select $n$ cells. For each sampled cell I then identify its k neares neighbors and compute the median profile of the neighbors (in this case the profile in reduced PC space). Then I replace each sampled cell by the cell closest to the median profile of its neighbors. 
+
+```{r}
+refine_vertex <- function(vertex.knn, v.ix, X_pca){
+  # vertex.knn: KNN graph for randomly sampled points (output of BiocNeighbors::findKNN)
+  # v.ix: index of vertex to refine in vertex.knn
+  
+  ## Calculate median profile of KNNs of vertex
+  v.med <- apply(X_pca[vertex.knn$index[v.ix,],], 2, median)
+  ## Find the closest point to the median and sample
+  refined.vertex <- BiocNeighbors::findKNN(rbind(v.med, X_pca), subset=1, k=1)[["index"]][1] - 1 ## -1 to remove the median
+  return(refined.vertex)
+  }
+
+graph <- sim2.knn
+sample.vertices <- 0.1
+X_pca <- sim2.pca$x[, c(1:30)]
+
+random.vertices <- sample(V(graph), size=floor(sample.vertices*length(V(graph))))
+vertex.knn <- BiocNeighbors::findKNN(X=X_pca, k=21, subset=as.vector(random.vertices))
+refined.vertices <- V(graph)[sapply(1:nrow(vertex.knn$index), function(i) refine_vertex(vertex.knn, i, X_pca))]
+
+vertex.list <- sapply(1:length(random.vertices), FUN=function(X) neighbors(graph, v=random.vertices[X]))
+vertex.list.refined <- sapply(1:length(refined.vertices), FUN=function(X) neighbors(graph, v=refined.vertices[X]))
+```
+
+With the refined sampling scheme I select cells with a larger neighborhood on average.
+
+```{r, warning=FALSE, message=FALSE, echo=TRUE}
+bind_rows(
+  data.frame(neighborhood_size = unlist(lapply(vertex.list, length)), sampling="random"),
+  data.frame(neighborhood_size = unlist(lapply(vertex.list.refined, length)), sampling="refined")
+  ) %>%
+  ggplot(aes(neighborhood_size, fill=sampling)) +
+  geom_histogram(bins=30) +
+  facet_grid(sampling~.) +
+  theme_grey(base_size=15)
+```
+
+
+```{r, fig.width=10, fig.height=4}
+dyn.df <- dyn.df %>%
+  dplyr::mutate(random_sample=ifelse(Vertex %in% random.vertices, 1,0),
+                refined_sample=ifelse(Vertex %in% refined.vertices, 1,0)) 
+
+dyn.df %>%
+  dplyr::arrange(random_sample) %>%
+  ggplot(aes(UMAP1, UMAP2, color=random_sample)) +
+  geom_point(size=0.5) +
+  geom_point(data=. %>% dplyr::filter(random_sample==1), size=0.5) +
+  scale_color_viridis_c(na.value='grey70') +
+
+dyn.df %>%
+  dplyr::arrange(refined_sample) %>%
+  ggplot(aes(UMAP1, UMAP2, color=refined_sample)) +
+  geom_point(size=0.5) +
+  geom_point(data=. %>% dplyr::filter(refined_sample==1), size=0.5) +
+  scale_color_viridis_c(na.value='grey70') 
+
+```
+
+When $n$ is large I often end up sampling less than $n$ cells because for many randomly sampled cells the cell closest to the KNNs is the same. 
+
+```{r}
+
+random_n <- c()
+refined_n <- c()
+for (x in seq(0.01,0.5, by = 0.05)) {
+  for (i in 1:3){
+    random.vertices <- sample(V(graph), size=floor(x*length(V(graph))))
+    vertex.knn <- BiocNeighbors::findKNN(X=X_pca, k=21, subset=as.vector(random.vertices))
+    refined.vertices <- V(graph)[sapply(1:nrow(vertex.knn$index), function(i) refine_vertex(vertex.knn, i, X_pca))]
+    l_ran <- length(random.vertices)
+    l_ref <- length(unique(refined.vertices))
+    random_n <- c(random_n, l_ran)
+    refined_n <- c(refined_n, l_ref)
+    }
+}
+
+data.frame(sample_proportion=lapply(seq(0.01,0.5, by = 0.05), function(x) rep(x, 3)) %>% purrr::reduce(c), random = random_n, refined = refined_n) %>%
+  pivot_longer(cols = - sample_proportion, names_to = 'sampling', values_to = "n") %>%
+  ggplot(aes(sample_proportion, n, color=sampling)) + 
+  geom_point(size=1) +
+  theme_clean(base_size = 16)
+```
+
+### Compare DA testing results
+
+```{r}
+countCells <- function(graph, meta, vertex.list, random.vertices, sample.column='Sample'){
+  count.matrix <- matrix(0L, ncol=length(unique(meta[, sample.column, drop=TRUE])), nrow=length(vertex.list))
+  colnames(count.matrix) <- unique(meta[, sample.column, drop=TRUE])
+  
+  for(x in seq_along(1:length(vertex.list))){
+      v.x <- vertex.list[[x]]
+      for(i in seq_along(1:length(unique(meta[, sample.column, drop=TRUE])))){
+        i.s <- unique(meta[, sample.column, drop=TRUE])[i]
+        i.s.vertices <- intersect(v.x, meta[meta[, sample.column, drop=TRUE] == i.s, ]$Vertex)
+        
+        count.matrix[x, i] <- length(i.s.vertices)
+      }
+    }
+    rownames(count.matrix) <- random.vertices
+    return(count.matrix)
+}
+
+testQLF <- function(graph, sim2.counts, sim2.model, connectivity='edge', pca=NULL){
+  sim2.dge <- DGEList(sim2.counts[, rownames(sim2.model)], lib.size=log(colSums(sim2.counts)))
+  sim2.dge <- estimateDisp(sim2.dge, sim2.model)
+  sim2.fit <- glmQLFit(sim2.dge, sim2.model, robust=TRUE)
+  sim2.contrast <- makeContrasts(ConditionA - ConditionB, levels=sim2.model)
+  sim2.res <- glmQLFTest(sim2.fit, contrast=sim2.contrast)
+  sim2.res <- as.data.frame(topTags(glmQLFTest(sim2.fit, coef=1), sort.by='none', n=Inf))
+  sim2.res$Sig <- as.factor(as.numeric(sim2.res$PValue <= 0.05))
+  sim2.res$Neighbourhood <- as.numeric(rownames(sim2.res))
+  
+  sim2.spatialfdr <- graph_spatialFDR(neighborhoods=vertex.list, graph=graph, connectivity=connectivity, pvalues=sim2.res$PValue, pca = pca)
+  return(list(res=sim2.res, spFDR=sim2.spatialfdr))
+}
+
+graph <- sim2.knn
+sample.vertices <- 0.1
+
+random.vertices <- sample(V(graph), size=floor(sample.vertices*length(V(graph))))
+vertex.knn <- BiocNeighbors::findKNN(X=X_pca, k=21, subset=as.vector(random.vertices))
+refined.vertices <- V(graph)[sapply(1:nrow(vertex.knn$index), function(i) refine_vertex(vertex.knn, i, X_pca))]
+
+vertex.list <- sapply(1:length(random.vertices), FUN=function(X) neighbors(graph, v=random.vertices[X]))
+vertex.list.refined <- sapply(1:length(refined.vertices), FUN=function(X) neighbors(graph, v=refined.vertices[X]))
+
+count.matrix.random <- countCells(sim2.knn, dyn.df, vertex.list = vertex.list, random.vertices = random.vertices, sample.column = "sample")
+count.matrix.refined <- countCells(sim2.knn, dyn.df, vertex.list = vertex.list.refined, random.vertices = refined.vertices, sample.column = "sample")
+  
+
+spFDR.random <- testQLF(sim2.knn, count.matrix.random, sim2.model)
+spFDR.refined <- testQLF(sim2.knn, count.matrix.refined, sim2.model)
+
+```
+
+Refined sampling seems to be able to identify DA at both ends of the spectrum better
+
+```{r, message=FALSE, warning=FALSE}
+fdr.df.random <- data.frame(Vertex=as.integer(rownames(spFDR.random$res)), p=spFDR.random$res$PValue, adjp=spFDR.random$spFDR, adjp_fdr=spFDR.random$res$FDR, logFC=spFDR.random$res$logFC, Sig=spFDR.random$res$Sig)
+fdr.df.refined <- data.frame(Vertex=as.integer(rownames(spFDR.refined$res)), p=spFDR.refined$res$PValue, adjp=spFDR.refined$spFDR, logFC=spFDR.refined$res$logFC, adjp_fdr=spFDR.refined$res$FDR, Sig=spFDR.refined$res$Sig)
+
+
+dyn.df %>%
+  left_join(fdr.df.random) %>%
+  # dplyr::arrange(sampled) %>%
+  ggplot(aes(UMAP1, UMAP2, 
+             # color= - log10(adjp),
+            # color= - log10(p),
+             color = logFC
+             )) +
+  geom_point(size=0.5) +
+  geom_point(data=. %>% dplyr::filter(!is.na(adjp))) +
+  theme_clean() +
+  scale_color_gradient2(midpoint = 0, na.value ="grey80") +
+  ggtitle("Random sampling")
+
+
+dyn.df %>%
+  left_join(fdr.df.refined) %>%
+  # dplyr::arrange(sampled) %>%
+  ggplot(aes(UMAP1, UMAP2, 
+             # color= - log10(adjp),
+            # color= - log10(p),
+             color = logFC
+             )) +
+  geom_point(size=0.5) +
+  geom_point(data=. %>% dplyr::filter(!is.na(adjp))) +
+  theme_clean() +
+  scale_color_gradient2(midpoint = 0, na.value ="grey80") +
+  ggtitle("Refined sampling")
+
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+dyn.df %>%
+   left_join(fdr.df.refined) %>%
+  dplyr::filter(!is.na(logFC)) %>%
+  ggplot(aes(logFC, -log10(adjp), shape=Sig, color=group_id)) +
+  geom_point() +
+  ggtitle("refined sampling") +
+dyn.df %>%
+   left_join(fdr.df.random) %>%
+  dplyr::filter(!is.na(logFC)) %>%
+  ggplot(aes(logFC, -log10(adjp), shape=Sig, color=group_id)) +
+  geom_point() +
+  ggtitle("random sampling") 
+```
+
+
+```{r, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+dyn.df %>%
+   left_join(fdr.df.refined) %>%
+  dplyr::filter(!is.na(logFC)) %>%
+  ggplot(aes(group_id, logFC,  shape=Sig, color=group_id, size= -log10(adjp))) +
+  geom_jitter() +
+  ggtitle("refined sampling") +
+dyn.df %>%
+   left_join(fdr.df.random) %>%
+  dplyr::filter(!is.na(logFC)) %>%
+  ggplot(aes(group_id, logFC, shape=Sig, color=group_id, size= -log10(adjp))) +
+  geom_jitter() +
+  ggtitle("random sampling") 
+```
+
+As expected multiple testing correction is less severe with the refined sample set (less points)
+
+```{r}
+fdr.df.refined %>%
+  ggplot(aes(-log10(p), -log10(adjp))) +
+  geom_abline(linetype=2) +
+  geom_point() +
+  ggtitle("Refined sampling") +
+fdr.df.random %>%
+  ggplot(aes(-log10(p), -log10(adjp))) +
+  geom_abline(linetype=2) +
+  ggtitle("Random sampling") +
+  geom_point() 
+
+```
+
+## Use larger dataset
+
+I expect the advantage of refining the sampling scheme will be more obvious with a larger dataset. Let's try with 5000 cells and 10 milestones.
+
+```{r}
+simulate_linear_traj <- function(num_cells, num_milestones, num_features=1000, k_param=21, seed=42){
+  set.seed(seed)
+  ## Generate simulated dataset of trajectory
+  dataset <- generate_dataset(
+    model = model_linear(num_milestones = num_milestones),
+    num_cells = num_cells,
+    num_features = num_features
+  )
+  sim2.gex <- as.matrix(dataset$expression)
+  sim2.branches <- dataset$prior_information$groups_id
+  
+  ## Build graph 
+  sim2.pca <- prcomp_irlba(sim2.gex, n=50, scale.=TRUE, center=TRUE)
+  X_pca = sim2.pca$x[, c(1:30)]
+  sim2.knn <- buildKNNGraph(x=X_pca, k=k_param, d=NA, transposed=TRUE)
+  ## Run UMAP
+  stem.ta.umap <- umap(sim2.pca$x[, c(1:30)],
+                       n_components=2,
+                       n_neighbors=k_param, metric='euclidean',
+                       init='random', min_dist=0.1)
+  dyn.df <- data.frame(UMAP1=stem.ta.umap$layout[,1], UMAP2=stem.ta.umap$layout[,2], 
+             cell_id=rownames(sim2.gex))
+  dyn.df <- dyn.df %>% left_join(sim2.branches)
+  
+  ## Simulate conditions
+  n_groups <- length(unique(dyn.df$group_id))
+  p_vec <- seq(0.1,0.9, length.out = n_groups)
+  a.cells <- c()
+  for (i in 1:n_groups) {
+    g <- paste0("M",i)
+    p <- p_vec[i] 
+    m.A <- sample(dyn.df$cell_id[dyn.df$group_id==g], 
+                  size=floor(sum(dyn.df$group_id==g)*p))
+    a.cells <- c(a.cells, m.A)
+  }
+  
+  dyn.df <- dyn.df %>% dplyr::mutate(condition = ifelse(cell_id %in% a.cells, "A", 'B')) 
+
+  ## Simulate replicates
+  dyn.df <- dyn.df %>%
+    group_by(group_id) %>%
+    dplyr::mutate(replicate=c(rep("R1", floor(n()*0.3)), 
+                              rep("R2", floor(n()*0.3)), 
+                              rep("R3", n() - 2*(floor(n()*0.3))))
+    ) 
+  
+  ## Add sample name (condition + replicate)
+  dyn.df$sample <- paste(dyn.df$condition, dyn.df$replicate, sep="_")
+  ## Add vertex id (for counts)
+  dyn.df$Vertex <- as.vector(V(sim2.knn))
+  
+  ## Make model matrix for testing
+  sample.meta <- data.frame("Condition"=c(rep("A", 3), rep("B", 3)),
+                            "Replicate"=rep(c("R1", "R2", "R3"), 2))
+  sample.meta$Sample <- paste(sample.meta$Condition, sample.meta$Replicate, sep="_")
+  rownames(sample.meta) <- sample.meta$Sample
+  sim2.model <- model.matrix(~ 0 + Condition, data=sample.meta)
+  
+  return(list(graph=sim2.knn,
+              X_pca=X_pca,
+              meta.df=dyn.df,
+              model=sim2.model))
+  
+  }
+
+data_5k_cells <- simulate_linear_traj(num_cells = 5000, num_milestones = 10)
+
+```
+```{r, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+data_5k_cells$meta.df %>%
+  ggplot(aes(UMAP1, UMAP2, color=group_id)) +
+  geom_point(size=0.2) +
+  geom_text(data = . %>% group_by(group_id) %>% summarise(UMAP1=first(UMAP1), UMAP2=first(UMAP2)), aes(label=group_id), color="black")
+
+data_5k_cells$meta.df %>%
+  ggplot(aes(UMAP1, UMAP2, color=condition)) +
+  geom_point(size=0.2)
+```
+
+### Compare DA testing results
+
+```{r, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+graph <- data_5k_cells$graph
+sample.vertices <- 0.1
+meta.df <- data_5k_cells$meta.df
+model <- data_5k_cells$model
+X_pca <- data_5k_cells$X_pca
+
+random.vertices <- sample(V(graph), size=floor(sample.vertices*length(V(graph))))
+vertex.knn <- BiocNeighbors::findKNN(X=X_pca, k=21, subset=as.vector(random.vertices))
+refined.vertices <- V(graph)[sapply(1:nrow(vertex.knn$index), function(i) refine_vertex(vertex.knn, i, X_pca))]
+
+vertex.list <- sapply(1:length(random.vertices), FUN=function(X) neighbors(graph, v=random.vertices[X]))
+vertex.list.refined <- sapply(1:length(refined.vertices), FUN=function(X) neighbors(graph, v=refined.vertices[X]))
+
+count.matrix.random <- countCells(sim2.knn, meta.df, vertex.list = vertex.list, random.vertices = random.vertices, sample.column = "sample")
+count.matrix.refined <- countCells(sim2.knn, meta.df, vertex.list = vertex.list.refined, random.vertices = refined.vertices, sample.column = "sample")
+  
+spFDR.random <- testQLF(graph, count.matrix.random, model)
+spFDR.refined <- testQLF(graph, count.matrix.refined, model)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+fdr.df.random <- data.frame(Vertex=as.integer(rownames(spFDR.random$res)), p=spFDR.random$res$PValue, adjp=spFDR.random$spFDR, adjp_fdr=spFDR.random$res$FDR, logFC=spFDR.random$res$logFC, Sig=spFDR.random$res$Sig)
+fdr.df.refined <- data.frame(Vertex=as.integer(rownames(spFDR.refined$res)), p=spFDR.refined$res$PValue, adjp=spFDR.refined$spFDR, logFC=spFDR.refined$res$logFC, adjp_fdr=spFDR.refined$res$FDR, Sig=spFDR.refined$res$Sig)
+
+
+meta.df %>%
+  left_join(fdr.df.random) %>%
+  # dplyr::arrange(sampled) %>%
+  ggplot(aes(UMAP1, UMAP2, 
+             # color= - log10(adjp),
+            # color= - log10(p),
+             color = logFC
+             )) +
+  geom_point(size=0.5) +
+  geom_point(data=. %>% dplyr::filter(!is.na(adjp))) +
+  theme_clean() +
+  scale_color_gradient2(midpoint = 0, high = "red", low="blue",na.value ="grey80") +
+  ggtitle("Random sampling")
+
+
+meta.df %>%
+  left_join(fdr.df.refined) %>%
+  # dplyr::arrange(sampled) %>%
+  ggplot(aes(UMAP1, UMAP2, 
+             # color= - log10(adjp),
+            # color= - log10(p),
+             color = logFC
+             )) +
+  geom_point(size=0.5) +
+  geom_point(data=. %>% dplyr::filter(!is.na(adjp))) +
+  theme_clean() +
+  scale_color_gradient2(midpoint = 0, high = "red", low="blue",na.value ="grey80") +
+  ggtitle("Refined sampling")
+
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+meta.df %>%
+   left_join(fdr.df.refined) %>%
+  dplyr::filter(!is.na(logFC)) %>%
+  ggplot(aes(logFC, -log10(adjp), shape=Sig, color=group_id)) +
+  geom_point() +
+  ggtitle("refined sampling") +
+meta.df %>%
+   left_join(fdr.df.random) %>%
+  dplyr::filter(!is.na(logFC)) %>%
+  ggplot(aes(logFC, -log10(adjp), shape=Sig, color=group_id)) +
+  geom_point() +
+  ggtitle("random sampling") 
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=12, fig.height=5}
+num_milestones=10
+
+meta.df %>%
+  ungroup() %>%
+  left_join(fdr.df.refined) %>%
+  dplyr::mutate(group_id = factor(group_id, levels=paste0('M', 1:num_milestones))) %>%
+  dplyr::filter(!is.na(logFC)) %>%
+  ggplot(aes(group_id, logFC,  shape=Sig, color=group_id, size= -log10(adjp))) +
+  geom_jitter() +
+  ggtitle("refined sampling") +
+meta.df %>%
+  ungroup() %>%
+  left_join(fdr.df.random) %>%
+  dplyr::mutate(group_id = factor(group_id, levels=paste0('M', 1:num_milestones))) %>%  dplyr::filter(!is.na(logFC)) %>%
+  ggplot(aes(group_id, logFC, shape=Sig, color=group_id, size= -log10(adjp))) +
+  geom_jitter() +
+  ggtitle("random sampling") 
+```
+
+What is the relationship between neighborhood size and testing outcomes?
+
+```{r}
+fdr.df.random$neigh_size <- sapply(vertex.list, function(x) length(x))
+fdr.df.refined$neigh_size <- sapply(vertex.list.refined, function(x) length(x))
+
+fdr.df.random %>%
+  ggplot(aes(neigh_size, -log10(adjp), color=Sig, 
+             # size= -log10(adjp))
+         )) +
+  geom_point() +
+  ggtitle("Random sampling") +
+fdr.df.refined %>%
+  ggplot(aes(neigh_size, -log10(adjp), color=Sig, 
+             # size= -log10(adjp)
+             )) +
+  geom_point() +
+    ggtitle("Refined sampling") 
+
+```
+
+## Robustness of test outcomes
+
+I want to check whether using refined sampling allows to have more logFC even with different sampling 
+
+```{r}
+spFDR.random$res
+intersect(random.vertices, refined.vertices)
+```
+
+
+```{r, fig.width=10, fig.height=7}
+run_milo_sampling <- function(graph, meta.df, model, X_pca, seed=42, sample.vertices=0.1){
+  set.seed(seed)
+  random.vertices <- sample(V(graph), size=floor(sample.vertices*length(V(graph))))
+  vertex.knn <- BiocNeighbors::findKNN(X=X_pca, k=21, subset=as.vector(random.vertices))
+  refined.vertices <- V(graph)[sapply(1:nrow(vertex.knn$index), function(i) refine_vertex(vertex.knn, i, X_pca))]
+  
+  vertex.list <- sapply(1:length(random.vertices), FUN=function(X) neighbors(graph, v=random.vertices[X]))
+  vertex.list.refined <- sapply(1:length(refined.vertices), FUN=function(X) neighbors(graph, v=refined.vertices[X]))
+  
+  count.matrix.random <- countCells(sim2.knn, meta.df, vertex.list = vertex.list, random.vertices = random.vertices, sample.column = "sample")
+  count.matrix.refined <- countCells(sim2.knn, meta.df, vertex.list = vertex.list.refined, random.vertices = refined.vertices, sample.column = "sample")
+    
+  spFDR.random <- testQLF(graph, count.matrix.random, model)
+  spFDR.refined <- testQLF(graph, count.matrix.refined, model)
+  
+  fdr.df.random <- data.frame(Vertex=as.integer(rownames(spFDR.random$res)), p=spFDR.random$res$PValue, adjp=spFDR.random$spFDR, adjp_fdr=spFDR.random$res$FDR, logFC=spFDR.random$res$logFC, Sig=spFDR.random$res$Sig)
+  fdr.df.refined <- data.frame(Vertex=as.integer(rownames(spFDR.refined$res)), p=spFDR.refined$res$PValue, adjp=spFDR.refined$spFDR, logFC=spFDR.refined$res$logFC, adjp_fdr=spFDR.refined$res$FDR, Sig=spFDR.refined$res$Sig)
+
+  return(list(random=fdr.df.random, refined=fdr.df.refined))
+}
+
+sample_perc5 <- map(2020:2025, ~ run_milo_sampling(data_5k_cells$graph, data_5k_cells$meta.df, data_5k_cells$model, data_5k_cells$X_pca, seed=.x, sample.vertices = 0.05))
+sample_perc10 <- map(2020:2025, ~ run_milo_sampling(data_5k_cells$graph, data_5k_cells$meta.df, data_5k_cells$model, data_5k_cells$X_pca, seed=.x, sample.vertices = 0.1))
+sample_perc15 <- map(2020:2025, ~ run_milo_sampling(data_5k_cells$graph, data_5k_cells$meta.df, data_5k_cells$model, data_5k_cells$X_pca, seed=.x, sample.vertices = 0.15))
+sample_perc20 <- map(2020:2025, ~ run_milo_sampling(data_5k_cells$graph, data_5k_cells$meta.df, data_5k_cells$model, data_5k_cells$X_pca, seed=.x, sample.vertices = 0.2))
+
+
+make_test_df <- function(sample_df){
+  sample_df %>%
+  imap( ~ bind_rows(.x[["refined"]] %>% dplyr::mutate(sampling="refined"),
+                     .x[["random"]] %>% dplyr::mutate(sampling="random")) %>%
+           dplyr::mutate(s=.y)) %>%
+    purrr::reduce(bind_rows) %>%
+    left_join(data_5k_cells$meta.df) %>%
+    dplyr::mutate(group_id = factor(group_id, levels=paste0('M', 1:num_milestones))) %>%
+    group_by(sampling, s, group_id) %>%
+    summarise(mean_logFC=mean(logFC)) 
+  }
+
+map(list(perc5=sample_perc5, perc10=sample_perc10, perc15=sample_perc15, perc20=sample_perc20), ~ make_test_df(.x)) %>%
+  imap( ~ dplyr::mutate(.x, perc=.y)) %>%
+  purrr::reduce(bind_rows) %>%
+  ggplot(aes(group_id, mean_logFC, color=perc)) +
+  # geom_pointrange(stat = "summary",
+  #   fun.min = min,
+  #   fun.max = max,
+  #   fun = mean) +
+  geom_boxplot(varwidth = TRUE) +
+  facet_grid(.~sampling) +
+  scale_fill_gradient2()
+```
+
+No big differences TBH
+
+
+
+
