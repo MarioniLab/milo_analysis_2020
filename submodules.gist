@@ -1,0 +1,22 @@
+## This is a reference for updating the submodules in this repository.
+
+## update the tracked branches in the submodule:
+git submodule update --remote
+
+## update the submodule in the master branch and have the master branch checked out
+cd [submodule dir]
+git checkout master
+git pull
+
+## commit the change to the main/parent repo
+cd ..
+git add [submodule dir]
+git commit -m "commit message re: move submodule to lastest commit on master branch"
+git pull
+git push
+
+## These changes can then be pulled down for another developer
+git pull
+# then update the submodule:
+git submodule update
+
