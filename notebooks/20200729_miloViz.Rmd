@@ -1,0 +1,152 @@
+---
+title: "milo visualization"
+output: html_notebook
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(edgeR)
+library(igraph)
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(irlba)
+library(ggthemes)
+library(ggsci)
+library(mvtnorm)
+library(umap)
+library(dplyr)
+
+# BiocManager::install("cydar")
+library(cydar)
+library(dyntoy)
+
+# devtools::install_github("analyxcompany/ForceAtlas2")
+library(ForceAtlas2)
+```
+
+Goal: make a nice visualization of the neighborhood (NH) graph
+
+1. The graph layout must be **easily comparable with the graph layout of the whole single-cell dataset**: 
+  - we could do this by using ForceAtlas2 to make a force-directed graph layout of the full KNN graph, and then initialize the layout of the NH-graph from the whole KNN-graph layout (as in `scanpy.pl.paga_compare`). I'm using FA2 implementation for R found (here)[https://github.com/analyxcompany/ForceAtlas2] --> takes 2 million years, thank u next
+  - Do the initialization on the UMAP
+2. The viz must **convey info about the size of a NH**
+
+## Make dataset
+
+```{r}
+dataset <- generate_dataset(
+    model = model_linear(num_milestones = 5),
+    num_cells = 3000,
+    num_features = 2000
+  )
+
+## Build SingleCellExperiment object
+cnts <- t(dataset$counts)
+coldata <- data.frame(row.names = colnames(cnts), dataset$prior_information$groups_id)
+
+sce <- SingleCellExperiment(assays=list(counts=cnts), colData=coldata)
+
+## Add KNN graph
+pca <- prcomp_irlba(t(cnts), n=30, scale.=TRUE, center=TRUE)
+X_pca <- pca$x[, c(1:30)]
+knn_graph <- buildKNNGraph(x=X_pca, k=21, d=NA, transposed=TRUE)
+X_umap <- umap(X_pca, n_components=2, n_neighbors=21, metric='euclidean',init='random', min_dist=0.1)
+colnames(X_umap$layout) <- c("UMAP_1", "UMAP_2")
+
+reducedDims(sce) <- list(PCA=X_pca, UMAP=X_umap$layout)
+```
+
+```{r}
+plot(reducedDim(sce, 'UMAP')[,1], reducedDim(sce, 'UMAP')[,2])
+```
+
+Build the NHs
+
+```{r}
+neighborhood_expression <- function(neighborhoods, data.set){
+  # I'll calculate the average value of each neighborhood for each of the n features in the data.set
+  neighbour.model <- matrix(0L, ncol=length(neighborhoods), nrow=ncol(data.set))
+  # neighbour.model <- sapply(1:length(neighborhoods), FUN=function(X) print(length(neighbour.model[, X])))
+  for(x in seq_along(1:length(neighborhoods))){
+    neighbour.model[neighborhoods[[x]], x] <- 1
+  }
+  
+  neigh.exprs <- t(neighbour.model) %*% t(data.set)
+  neigh.exprs <- t(apply(neigh.exprs, 2, FUN=function(XP) XP/colSums(neighbour.model)))
+  return(neigh.exprs)
+}
+
+## Pick random centers 
+random.vertices <- sample(V(knn_graph), size=floor(0.1*length(V(knn_graph))))
+vertex.list <- sapply(1:length(random.vertices), FUN=function(X) neighbors(knn_graph, v=random.vertices[X]))
+
+## Compute avg expression profile within neighborhood
+nh_cnts <- neighborhood_expression(vertex.list, cnts)
+
+## Make graph
+nh_pca <- prcomp_irlba(t(nh_cnts), n=30, scale.=TRUE, center=TRUE)
+nh_knn_graph <- buildKNNGraph(x=nh_pca$x, k=21, d=NA, transposed=TRUE)
+nh_umap_random <- umap(nh_pca$x, n_components=2, n_neighbors=21, metric='euclidean',init='random', min_dist=0.1)
+```
+
+Take initial UMAP coordinates from the position in the original UMAP
+
+```{r}
+plot(reducedDim(sce[,as.vector(random.vertices)], "UMAP")[,1], reducedDim(sce[,as.vector(random.vertices)], "UMAP")[,2])
+```
+
+```{r}
+nh_umap_init <- umap(nh_pca$x, n_components=2, n_neighbors=21, metric='euclidean',init=reducedDim(sce[,as.vector(random.vertices)], "UMAP"), min_dist=0.1)
+
+plot(nh_umap_init$layout[,1], nh_umap_init$layout[,2])
+```
+
+This doesn't work. What if we cheat and we just put spots over the UMAP?
+```{r}
+if (!"Vertex" %in% colnames(colData(sce))) {
+  colData(sce) <- as.data.frame(colData(sce)) %>%
+    rowid_to_column("Vertex") 
+  } 
+colData(sce) <- colData(sce)[c("Vertex", "cell_id", "group_id")]
+nh_size <- sapply(vertex.list, function(x) length(x))
+nh_df <- data.frame(Vertex=as.vector(random.vertices), nh_size)
+
+colData(sce) <- as.data.frame(colData(sce)) %>%
+  left_join(nh_df, by="Vertex") %>%
+  dplyr::mutate(is_nh=ifelse(is.na(nh_size),FALSE, TRUE)) %>%
+  DataFrame()
+
+data.frame(reducedDim(sce, 'UMAP'), colData(sce)) %>%
+  dplyr::filter(is_nh) %>%
+  ggplot(aes(UMAP_1, UMAP_2)) +
+  geom_point(aes(size=nh_size), alpha=0.1)
+```
+
+```{r}
+data.frame(colData(sce)) %>%
+  dplyr::filter(is_nh) %>%
+  dplyr::mutate(UMAP_1=nh_umap_init$layout[,1], UMAP_2=nh_umap_init$layout[,2]) %>%
+  ggplot(aes(UMAP_1, UMAP_2)) +
+  geom_point(
+    aes(size=nh_size),
+    alpha=0.1)
+```
+
+
+```{r}
+# ## Calculate overlap between nh
+# # Get the combinations of names of list elements
+# l <- vertex.list
+# nms <- combn(seq_along(vertex.list) , 2 , FUN = paste0 , collapse = "_" , simplify = FALSE )
+# 
+# # Make the combinations of list elements
+# ll <- combn( l , 2 , simplify = FALSE )
+# 
+# # Intersect the list elements
+# out <- sapply( ll , function(x) length( intersect( x[[1]] , x[[2]] ) ) )
+# data.frame(pair=unlist(nms), overlap=out)
+
+```
+
+

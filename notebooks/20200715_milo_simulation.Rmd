@@ -1045,6 +1045,14 @@ purrr::reduce(neigh_df_ls, bind_rows) %>%
 
 ```
 
+#### Relationship between K and neighborhood size
+```{r}
+purrr::reduce(neigh_df_ls, bind_rows) %>%
+  group_by(sampling_mode, k) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(k,n, color=sampling_mode)) +
+  geom_point()
+```
 
 
 
