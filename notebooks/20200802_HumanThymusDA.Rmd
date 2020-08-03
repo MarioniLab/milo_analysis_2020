@@ -1,0 +1,218 @@
+---
+title: "Milo on human thymus"
+output: html_notebook
+---
+
+```{r}
+library(MultiAssayExperiment)
+library(tidyverse)
+library(Seurat)
+library(Signac)
+library(RColorBrewer)
+library(igraph)
+library(patchwork)
+library(scran)
+
+# devtools::install_github("https://github.com/MikeDMorgan/miloR.git")
+source("milo/milo_temp.R")
+
+## Setup to use python in Rmd
+library(reticulate)
+reticulate::use_condaenv("emma_env")
+
+theme_dimred <- function( ... ){
+  theme(axis.ticks =element_blank(), axis.text = element_blank(), plot.title = element_text(hjust=0.5), ... )
+  }
+```
+
+```{python}
+import scanpy as sc
+import pandas as pd
+import numpy as np
+## To show plots inline
+import matplotlib.pyplot as plt
+import sys,os
+plt.switch_backend('agg')
+sys.path.insert(1, '/nfs/team205/ed6/bin/thATAC/preprocess_utils/')
+import atac_utils 
+import scipy.sparse
+from pathlib import Path
+
+# sc._settings.ScanpyConfig.figdir = Path(r.outdir)
+```
+
+
+### Load data
+
+Load anndata object, downloaded from [here](https://zenodo.org/record/3572422#.XsY2h5NKhQI) following the link from [Park et al. 2020](10.1126/science.aay3224)
+
+```{python}
+rna_adata = sc.read_h5ad("/nfs/team205/ed6/data/Park_scRNAseq/HTA08.v01.A06.Science_human_tcells.raw.h5ad")
+rna_adata.X = rna_adata.raw.X
+rna_adata.X = scipy.sparse.csc_matrix(rna_adata.X)
+```
+
+Load MOFA projection, to use as reduced dimensionality object
+
+```{r}
+mofa_dims <- read.csv("/nfs/team205/ed6/data/thymus_data/thymus_MOFA_projection.csv") %>%
+  column_to_rownames("cell")
+
+## Filter just the scRNA-seq cells and factors 4 knn graoh construciton
+mofa_dims <- as.matrix(mofa_dims[rownames(py$rna_adata$obs),1:5])
+```
+
+Convert `anndata` to `SingleCellExperiment` object 
+
+```{r}
+adata <- py$rna_adata
+cnt <- t(adata$X)
+rownames(cnt) <- adata$var_names$to_list()
+colnames(cnt) <- adata$obs_names$to_list()
+
+# Create the SingleCellExperiment object
+sce <- SingleCellExperiment(assay=list(counts=cnt), colData = adata$obs)
+
+reducedDim(sce) <- mofa_dims
+reducedDimNames(sce) <- "MOFA"
+sce
+```
+
+## Build KNN graph
+
+```{r}
+k_param = 30
+knn_graph <-
+  buildKNNGraph(
+    x = reducedDim(sce, "MOFA")[,1:5],
+    k = k_param,
+    d = NA,
+    transposed = TRUE
+  )
+
+sce <- scater::runUMAP(sce, use_dimred = "MOFA", n_neighbors = k_param, n_dimred = 5)
+
+scater::plotUMAP(sce, colour_by="cell types",text_by="cell types", point_size=0.8) +
+  # geom_point(aes(color=`colour_by`), size=0.5) +
+  # scale_color_brewer(palette="Spectral")
+  theme_dimred()
+```
+
+
+## Test for differential abundance by age
+
+Sample neighborhoods with refined sampling scheme
+
+```{r}
+# milo.sce=sce
+# graph=knn_graph ## This will be a slot in the milo class
+# dimred="MOFA"
+# n_components=5
+# sampling_frac = 0.05
+# sampling_mode = "refined"
+
+sample_nh <- function(milo.sce,
+                      graph,
+                      ## This will be a slot in the milo class
+                      k_param,
+                      dimred = "PCA",
+                      n_components = 20,
+                      sampling_frac = 0.2,
+                      sampling_mode = "refined") {
+  X_dimred  <- reducedDim(sce, dimred)
+  if (n_components > ncol(X_dimred)) {
+    warning(paste("Warning: specified n_components is higher than the total number of dimensions in reducedDim(sce, dimred). Falling back to using", ncol(X_dimred),"components\n"))
+    n_components <- ncol(X_dimred)
+  }
+  X_dimred  <- X_dimred[,n_components]
+  random_vertices <-
+    sample(V(graph), size = floor(sampling_frac * length(V(graph))))
+  if (sampling_mode == "random") {
+    sampled_vertices <- random_vertices
+  } else if (sampling_mode == "refined") {
+    vertex.knn <-
+      BiocNeighbors::findKNN(
+        X = X_dimred,
+        k = k_param,
+        subset = as.vector(random_vertices),
+        get.index = TRUE,
+        get.distance = FALSE
+      )
+    knn_mat <-
+      matrix(0, nrow = length(as.vector(random_vertices)), ncol = ncol(sce))
+    knn_mat <- as(knn_mat, "sparseMatrix")
+    for (ix in 1:nrow(knn_mat)) {
+      knn_mat[ix, vertex.knn$index[ix, ]] <- 1
+    }
+    ## Calculate avg profile of nearest neighbors
+    nh_dimred <- knn_mat %*% X_dimred
+    nh_dimred <- t(apply(
+      nh_dimred,
+      1,
+      FUN = function(x)
+        x / k_param
+    ))
+    rownames(nh_dimred) <- paste0('nh_', 1:nrow(nh_dimred))
+    ## Search nearest cell to average profile
+    all_dimred <- rbind(nh_dimred, X_dimred)
+    nn_mat <- BiocNeighbors::findKNN(all_dimred,
+                                     k = k_param,
+                                     subset = rownames(nh_dimred))[["index"]]
+    i = 1
+    sampled_vertices <- rep(0, nrow(nn_mat))
+    while (any(sampled_vertices <= nrow(nh_dimred))) {
+      update_ix <- which(sampled_vertices <= nrow(nh_dimred))
+      sampled_vertices[update_ix] <- nn_mat[update_ix, i]
+      i <- i + 1
+      if (i > k_param) {
+        stop("Average profiles are closer to each other than cells. Try increasing k_param.")
+      }
+    }
+    sampled_vertices <-
+      sampled_vertices - nrow(nh_dimred) ## reset index
+  } else {
+    stop(
+      paste0(
+        "Unrecognized sampling_mode ",
+        sampling_mode,
+        "(Accepted values: 'random', 'refined')"
+      )
+    )
+  }
+  sampled_vertices <- unique(sampled_vertices)
+  nh_list <-
+    sapply(
+      1:length(sampled_vertices),
+      FUN = function(X)
+        neighbors(graph, v = sampled_vertices[X])
+    )
+  nh_list <- setNames(nh_list, sampled_vertices)
+  return(nh_list)
+}
+
+
+nh_list <-
+  sample_nh(
+    sce, graph = knn_graph, k_param = k_param,
+    dimred = "MOFA", sampling_frac = 0.1, sampling_mode = "refined"
+  )
+```
+
+Make model matrix for testing. I use Age as an ordinal variable for testing.
+
+```{r}
+th.meta <- data.frame(colData(sce)[as.numeric(names(nh_list)),c("Sample","Age")]) %>%
+  distinct() %>%
+  column_to_rownames("Sample")
+th.model <- model.matrix(~  Age, data=th.meta)
+```
+
+
+```{r}
+count.matrix.refined <- countCells(graph, th.meta, vertex.list = nh_list, random.vertices = names(nh_list), sample.column = "Sample")
+rownames(count.matrix.refined) <- rownames(th.meta)
+spFDR.refined <- testQLF(graph, count.matrix.refined, th.model)
+
+
+```
+
