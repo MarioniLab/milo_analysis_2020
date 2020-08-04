@@ -4,7 +4,7 @@ output: html_notebook
 ---
 
 ```{r}
-library(MultiAssayExperiment)
+library(SingleCellExperiment)
 library(tidyverse)
 library(Seurat)
 library(Signac)
@@ -14,7 +14,14 @@ library(patchwork)
 library(scran)
 
 # devtools::install_github("https://github.com/MikeDMorgan/miloR.git")
-source("milo/milo_temp.R")
+
+## Sourcing all the scripts because devtools::load_all kept breaking my session for some reason
+source("~/milo/miloR/R/AllClasses.R")
+source("~/milo/miloR/R/AllGenerics.R")
+source("~/milo/miloR/R/buildGraph.R")
+source("~/milo/miloR/R/methods.R")
+source("~/milo/miloR/R/milo.R")
+source("~/milo/milo_temp.R")
 
 ## Setup to use python in Rmd
 library(reticulate)
@@ -69,14 +76,26 @@ adata <- py$rna_adata
 cnt <- t(adata$X)
 rownames(cnt) <- adata$var_names$to_list()
 colnames(cnt) <- adata$obs_names$to_list()
+logCnt <- log2(cnt + 1)
+pca <- prcomp(t(vx))
 
 # Create the SingleCellExperiment object
-sce <- SingleCellExperiment(assay=list(counts=cnt), colData = adata$obs)
+sce <- SingleCellExperiment(assay=list(counts=cnt, logcounts=logCnt), colData = adata$obs)
 
 reducedDim(sce) <- mofa_dims
 reducedDimNames(sce) <- "MOFA"
 sce
+
+## Save SingleCellExperiment
+saveRDS(sce, "/nfs/team205/ed6/data/Park_scRNAseq/HTA08.v01.A06.Science_human_tcells.SingleCellExperiment.RDS")
 ```
+
+Make Milo object
+```{r}
+BiocManager::install("SingleCellExperiment", update=TRUE)
+milo <- Milo(sce)
+```
+
 
 ## Build KNN graph
 
