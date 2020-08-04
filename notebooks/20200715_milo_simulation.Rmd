@@ -5,20 +5,17 @@ output: html_notebook
 
 ```{r, warning=FALSE, message=FALSE}
 library(ggplot2)
-library(edgeR)
-library(igraph)
+# library(edgeR)
+# library(igraph)
 library(SingleCellExperiment)
+library(tidyverse)
+library(igraph)
 library(scran)
-library(scater)
-library(irlba)
-library(ggthemes)
-library(ggsci)
-library(mvtnorm)
-library(umap)
-library(dplyr)
 
-# BiocManager::install("cydar")
-library(cydar)
+devtools::load_all("~/miloR/")
+
+
+# devtools::install_github("dynverse/dyntoy")
 library(dyntoy)
 ```
 
@@ -28,20 +25,55 @@ Using Mike's code from [here](https://www.dropbox.com/s/zr2znr0tftx59rv/graph_si
 
 ### Simulate linear trajectory
 
-Using [`dyntoy`](https://github.com/dynverse/dyntoy), I simulate linear trajectory (no branches) with 1500 cells and 5 main states (milestones).
+Using [`dyntoy`](https://github.com/dynverse/dyntoy), I simulate linear trajectory (no branches) with 2000 cells and 5 main states (milestones).
 
 ```{r, warning=FALSE, message=FALSE}
 dataset <- generate_dataset(
   model = model_linear(num_milestones = 5),
-  num_cells = 1500,
+  num_cells = 2000,
   num_features = 1000
 )
 
-sim2.gex <- as.matrix(dataset$expression)
-sim2.branches <- dataset$prior_information$groups_id
+sim_gex <- as.matrix(dataset$expression)
+sim_branches <- dataset$prior_information$groups_id
+```
+
+Make a SingleCellExperiment object
+```{r}
+coldata <- sim_branches %>% column_to_rownames("cell_id")
+
+## Simulate conditions and replicates
+...
+
+## Make SingleCellExperiment
+sim_sce <- SingleCellExperiment(assay=list(counts=t(sim_gex)), colData=coldata)
+logcounts(sim_sce) <- log2(counts(sim_sce) + 1)
+pca <- prcomp(t(logcounts(sim_sce)))
+reducedDims(sim_sce) <- SimpleList(PCA=pca$x)
+```
+
+Make Milo object
+```{r}
+sim_milo <- Milo(sim_sce)
+sim_milo
 ```
 
 ### Build graph
+
+```{r}
+sim_milo <- buildGraph(sim_milo, k = 20, d = 30)
+```
+
+### Make neighbourhoods
+
+```{r}
+sim_milo <- makeNeighbourhoods(sim_milo, prop = 0.1, k=20, d=30, refined = FALSE)
+```
+```{r}
+sim_milo
+```
+
+
 
 ```{r, warning=FALSE, message=FALSE}
 ## Run PCA
