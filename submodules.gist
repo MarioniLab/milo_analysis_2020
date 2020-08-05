@@ -1,7 +1,7 @@
 ## This is a reference for updating the submodules in this repository.
 
 ## update the tracked branches in the submodule:
-git submodule update --remote
+git submodule update --remote --recursive
 
 ## update the submodule in the master branch and have the master branch checked out
 cd [submodule dir]
