@@ -6,22 +6,10 @@ output: html_notebook
 ```{r}
 library(SingleCellExperiment)
 library(tidyverse)
-library(Seurat)
-library(Signac)
-library(RColorBrewer)
 library(igraph)
-library(patchwork)
 library(scran)
 
-# devtools::install_github("https://github.com/MikeDMorgan/miloR.git")
-
-## Sourcing all the scripts because devtools::load_all kept breaking my session for some reason
-source("~/milo/miloR/R/AllClasses.R")
-source("~/milo/miloR/R/AllGenerics.R")
-source("~/milo/miloR/R/buildGraph.R")
-source("~/milo/miloR/R/methods.R")
-source("~/milo/miloR/R/milo.R")
-source("~/milo/milo_temp.R")
+devtools::load_all("~/miloR/")
 
 ## Setup to use python in Rmd
 library(reticulate)
@@ -90,31 +78,32 @@ sce
 saveRDS(sce, "/nfs/team205/ed6/data/Park_scRNAseq/HTA08.v01.A06.Science_human_tcells.SingleCellExperiment.RDS")
 ```
 
+```{r}
+sce <- readRDS("~/Downloads/HTA08.v01.A06.Science_human_tcells.SingleCellExperiment.RDS")
+```
+
+
 Make Milo object
 ```{r}
-BiocManager::install("SingleCellExperiment", update=TRUE)
 milo <- Milo(sce)
 ```
 
 
 ## Build KNN graph
 
+For now I use scran function instead of `buildGraph` from package because it's very slow
+
 ```{r}
-k_param = 30
-knn_graph <-
-  buildKNNGraph(
-    x = reducedDim(sce, "MOFA")[,1:5],
-    k = k_param,
-    d = NA,
-    transposed = TRUE
-  )
+## Rename MOFA dim reduction as PCA so buildGraph can find it
+reducedDim(milo, "PCA") <- reducedDim(milo)
+# 
+# library(BiocNeighbors)
+# library(BiocParallel)
+# milo <- buildGraph(milo, k = 30)
 
-sce <- scater::runUMAP(sce, use_dimred = "MOFA", n_neighbors = k_param, n_dimred = 5)
-
-scater::plotUMAP(sce, colour_by="cell types",text_by="cell types", point_size=0.8) +
-  # geom_point(aes(color=`colour_by`), size=0.5) +
-  # scale_color_brewer(palette="Spectral")
-  theme_dimred()
+knn_graph <- buildKNNGraph(reducedDim(milo, "MOFA"), k=30, d=NA, transposed=TRUE)
+# graph(milo)[["graph"]] <- knn_graph
+miloR::graph(milo) <- knn_graph
 ```
 
 
@@ -123,115 +112,175 @@ scater::plotUMAP(sce, colour_by="cell types",text_by="cell types", point_size=0.
 Sample neighborhoods with refined sampling scheme
 
 ```{r}
-# milo.sce=sce
-# graph=knn_graph ## This will be a slot in the milo class
-# dimred="MOFA"
-# n_components=5
-# sampling_frac = 0.05
-# sampling_mode = "refined"
-
-sample_nh <- function(milo.sce,
-                      graph,
-                      ## This will be a slot in the milo class
-                      k_param,
-                      dimred = "PCA",
-                      n_components = 20,
-                      sampling_frac = 0.2,
-                      sampling_mode = "refined") {
-  X_dimred  <- reducedDim(sce, dimred)
-  if (n_components > ncol(X_dimred)) {
-    warning(paste("Warning: specified n_components is higher than the total number of dimensions in reducedDim(sce, dimred). Falling back to using", ncol(X_dimred),"components\n"))
-    n_components <- ncol(X_dimred)
-  }
-  X_dimred  <- X_dimred[,n_components]
-  random_vertices <-
-    sample(V(graph), size = floor(sampling_frac * length(V(graph))))
-  if (sampling_mode == "random") {
-    sampled_vertices <- random_vertices
-  } else if (sampling_mode == "refined") {
-    vertex.knn <-
-      BiocNeighbors::findKNN(
-        X = X_dimred,
-        k = k_param,
-        subset = as.vector(random_vertices),
-        get.index = TRUE,
-        get.distance = FALSE
-      )
-    knn_mat <-
-      matrix(0, nrow = length(as.vector(random_vertices)), ncol = ncol(sce))
-    knn_mat <- as(knn_mat, "sparseMatrix")
-    for (ix in 1:nrow(knn_mat)) {
-      knn_mat[ix, vertex.knn$index[ix, ]] <- 1
-    }
-    ## Calculate avg profile of nearest neighbors
-    nh_dimred <- knn_mat %*% X_dimred
-    nh_dimred <- t(apply(
-      nh_dimred,
-      1,
-      FUN = function(x)
-        x / k_param
-    ))
-    rownames(nh_dimred) <- paste0('nh_', 1:nrow(nh_dimred))
-    ## Search nearest cell to average profile
-    all_dimred <- rbind(nh_dimred, X_dimred)
-    nn_mat <- BiocNeighbors::findKNN(all_dimred,
-                                     k = k_param,
-                                     subset = rownames(nh_dimred))[["index"]]
-    i = 1
-    sampled_vertices <- rep(0, nrow(nn_mat))
-    while (any(sampled_vertices <= nrow(nh_dimred))) {
-      update_ix <- which(sampled_vertices <= nrow(nh_dimred))
-      sampled_vertices[update_ix] <- nn_mat[update_ix, i]
-      i <- i + 1
-      if (i > k_param) {
-        stop("Average profiles are closer to each other than cells. Try increasing k_param.")
-      }
-    }
-    sampled_vertices <-
-      sampled_vertices - nrow(nh_dimred) ## reset index
-  } else {
-    stop(
-      paste0(
-        "Unrecognized sampling_mode ",
-        sampling_mode,
-        "(Accepted values: 'random', 'refined')"
-      )
-    )
-  }
-  sampled_vertices <- unique(sampled_vertices)
-  nh_list <-
-    sapply(
-      1:length(sampled_vertices),
-      FUN = function(X)
-        neighbors(graph, v = sampled_vertices[X])
-    )
-  nh_list <- setNames(nh_list, sampled_vertices)
-  return(nh_list)
-}
-
-
-nh_list <-
-  sample_nh(
-    sce, graph = knn_graph, k_param = k_param,
-    dimred = "MOFA", sampling_frac = 0.1, sampling_mode = "refined"
-  )
+devtools::load_all("~/miloR")
+# milo@neighbourhoods <- list()
+milo <- makeNeighbourhoods(milo, prop=0.05, k = 30, d=5, reduced_dims = "PCA")
+length(milo@neighbourhoods)
 ```
+
 
 Make model matrix for testing. I use Age as an ordinal variable for testing.
 
 ```{r}
-th.meta <- data.frame(colData(sce)[as.numeric(names(nh_list)),c("Sample","Age")]) %>%
+th.meta <- data.frame(colData(sce)[,c("Sample","Age")]) %>%
   distinct() %>%
+  rownames_to_column() %>%
+  select(Sample, Age) %>%
   column_to_rownames("Sample")
 th.model <- model.matrix(~  Age, data=th.meta)
+th.model
 ```
 
 
 ```{r}
-count.matrix.refined <- countCells(graph, th.meta, vertex.list = nh_list, random.vertices = names(nh_list), sample.column = "Sample")
-rownames(count.matrix.refined) <- rownames(th.meta)
-spFDR.refined <- testQLF(graph, count.matrix.refined, th.model)
+milo <- countCells(milo, 
+                   data = data.frame(colData(milo)[,c("Sample","Age")]),
+                   samples = "Sample")
+```
 
+```{r}
+graph_spatialFDR <- function(neighborhoods, graph, pvalues, connectivity='vertex', pca=NULL){
+  # input a set of neighborhoods as a list of graph vertices
+  # the input graph and the unadjusted GLM p-values
+  #' neighborhoods: list of vertices and their respective neighborhoods
+  #' graph: input kNN graph
+  #' pvalues: a vector of pvalues in the same order as the neighborhood indices
+  #' connectivity: character - edge or vertex to calculate neighborhood connectivity or distance to use average Euclidean distance
+  #' pca: matrix of PCs to calculate Euclidean distances, only required when connectivity == distance
+  # Discarding NA pvalues.
+  haspval <- !is.na(pvalues)
+  if (!all(haspval)) {
+      coords <- coords[haspval, , drop=FALSE]
+      pvalues <- pvalues[haspval]
+  }
+    
+  # define the subgraph for each neighborhood then calculate the vertex connectivity for each
+  # this latter computation is quite slow - can it be sped up?
+  subgraphs <- lapply(1:length(neighborhoods[haspval]),
+                         FUN=function(X) induced_subgraph(graph, neighborhoods[haspval][[X]]))
+  # now loop over these sub-graphs to calculate the connectivity - this seems a little slow...
+  if(connectivity == "vertex"){
+    t.connect <- lapply(subgraphs, FUN=function(EG) vertex_connectivity(EG))
+  } else if(connectivity == "edge"){
+    t.connect <- lapply(subgraphs, FUN=function(EG) edge_connectivity(EG))
+  } else if(connectivity == "distance"){
+    if(!is.null(pca)){
+      t.connect <- lapply(1:length(neighborhoods[haspval]),
+                        FUN=function(PG) {
+                          x.pcs <- pca[neighborhoods[haspval][[PG]], ]
+                          x.euclid <- as.matrix(dist(x.pcs))
+                          x.distdens <- 1/mean(x.euclid[lower.tri(x.euclid, diag=FALSE)])
+                        return(x.distdens)})
+    } else{
+      stop("A matrix of PCs is required to calculate distances")  
+    }
+  }else{
+    stop("connectivity option not recognised - must be either edge, vertex or distance")
+  }
+  
+  # use 1/connectivity as the weighting for the weighted BH adjustment from Cydar
+  w <- 1/unlist(t.connect)
+  w[is.infinite(w)] <- 0
+  
+  # Computing a density-weighted q-value.
+  o <- order(pvalues)
+  pvalues <- pvalues[o]
+  w <- w[o]
+  adjp <- numeric(length(o))
+  adjp[o] <- rev(cummin(rev(sum(w)*pvalues/cumsum(w))))
+  adjp <- pmin(adjp, 1)
+  if (!all(haspval)) {
+    refp <- rep(NA_real_, length(haspval))
+    refp[haspval] <- adjp
+    adjp <- refp
+    }
+  return(adjp)
+}
+
+# testQLF <- function(graph, nh_counts, th.model, connectivity='edge', pca=NULL){
+nh_counts <- milo@neighbourhoodCounts
+
+dge <- DGEList(nh_counts[, rownames(th.model)], lib.size=log(colSums(nh_counts)))
+dge <- estimateDisp(dge, th.model)
+
+fit <- glmQLFit(dge, th.model, robust=TRUE)
+# sim2.contrast <- makeContrasts(ConditionA - ConditionB, levels=th.model)
+#   sim2.res <- glmQLFTest(sim2.fit, contrast=sim2.contrast)
+milo_res <- as.data.frame(topTags(glmQLFTest(fit, coef=1), sort.by='none', n=Inf))
+milo_res$Sig <- as.factor(as.numeric(milo_res$FDR <= 0.05))
+milo_res$Neighbourhood <- as.numeric(rownames(milo_res))
+  
+sim2.spatialfdr <- graph_spatialFDR(neighborhoods=milo@neighbourhoods, 
+                                    graph=milo@graph[["graph"]],
+                                    connectivity="distance", 
+                                    pvalues=milo_res$PValue,
+                                    pca=reducedDim(milo,"MOFA")
+                                    )
+
+```
+```{r}
+milo_res_df <- data.frame(Vertex=names(milo@neighbourhoods),
+                          p=milo_res$PValue, 
+                          adjp=sim2.spatialfdr, 
+                          logFC=milo_res$logFC, 
+                          adjp_fdr=milo_res$FDR, 
+                          Sig=milo_res$Sig
+                          )
+
+
+
+milo_res_df %>%
+  ggplot(aes(logFC, -log10(adjp))) +
+  geom_point(size=0.1)
+```
+
+
+```{r}
+hist(milo$adjp, breaks=50)
+```
+
+
+```{r}
+colData(milo)["Vertex"] <- as.character(V(graph(milo)))
+colData(milo) <-
+  SingleCellExperiment::colData(milo) %>%
+  as.data.frame() %>%
+    rownames_to_column() %>%
+  left_join(milo_res_df) %>%
+    column_to_rownames() %>%
+  DataFrame()
+
+```
+```{r}
+umap_th <- umap::umap(reducedDim(milo, "MOFA"), k=30 )
+reducedDim(milo, 'UMAP') <- umap_th$layout
+```
+```{r}
+coldata_df <- bind_cols(data.frame(colData(milo)), data.frame(reducedDim(milo, 'UMAP'))) 
+```
+
+
+```{r}
+pl_df <- scater::plotReducedDim(milo,dimred="UMAP", colour_by = "logFC", )$data  
+coldata_df %>%
+  arrange(- logFC) %>%
+  ggplot(aes(X1,X2)) + 
+  geom_point(size=0.2, color="grey", alpha=0.5) +
+  geom_point(data=. %>% filter(!is.na(logFC)), aes(color=logFC), size=1) +
+  scale_color_gradient2(midpoint = 0)
+  theme_dimred()
+
+pl_df <- scater::plotReducedDim(milo,dimred="UMAP", colour_by = "adjp", )$data  
+pl_df %>%
+  arrange(- colour_by) %>%
+  ggplot(aes(X,Y)) + 
+  geom_point(size=0.2, color="grey", alpha=0.5) +
+  geom_point(data=. %>% filter(!is.na(colour_by)), aes(color=-log10(colour_by))) +
+  scale_color_gradient2(midpoint = 0)
+  theme_dimred()
+
+```
+```{r}
 
 ```
 
