@@ -1,0 +1,262 @@
+---
+title: "Milo: what is the relation between k, neighbourhood size and type I error control?"
+output: html_notebook
+---
+
+# Introduction
+
+The purpose of `Milo` is to perform differential neighbourhood abundance testing. This requires a kNN graph and some way to choose a value of 
+$k$ such that there is some approximately optimal resolution of biologically informative cell states. The number of neighbourhoods in a data set is 
+therefore a function of both $k$ _and_ the total sample size, with no known formal relationship between the two. Emma has shown that the scaling 
+between sample size, $k$, neighbourhood size and the total number of neighbourhoods is not entirely intuitive. Therefore, we need some diagnostic plot 
+or way to choose an approximaltely optimal value of $k$ given the input data (and it's total size in numbers of cells).
+
+I will test 3 sets of simulations in order to develop this idea:
+
+* 3 discrete clusters
+* a simple linear trajectory
+* a complex bifurcating trajectory
+
+I will vary the total sample size in each case (total number of cells), and construct a variety of graphs with $k$ vary from very small (k=5) to 
+very large (k=100). These graphs will then be used to define the neighbourhoods using the refined sampling scheme, and perform DA testing. For each 
+graph I will record:
+
+* edge connectivtiy
+* vertex connectivity
+* node degree
+* neighbourhood size distribution
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+### Set up a mock data set using simulated data
+library(ggplot2)
+library(igraph)
+library(ggthemes)
+library(ggsci)
+library(umap)
+library(reshape2)
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(irlba)
+library(mvtnorm)
+library(Rfast)
+library(miloR)
+```
+
+# Simulation 1: 3 discrete clusters
+
+I've recapitulated the simulation code I used here. In reality I ran this on the cluster as it is quite laborious to run it on my laptop. I can read in 
+the necessary data and results as I wish though. I have deliberatley set the simulations such that there _should_ be no DA neighbourhoods - and thus any 
+discoveries should fall at or below the expected number given the FDR (1%).
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+# return a Milo object of the expected size
+simulate_discrete_data <- function(n.clusters=3, total.size=100, cells.per.cluster=c(30, 30, 40),
+                                   condition.props=c(0.5, 0.5, 0.5)){
+    set.seed(42)
+    r.n <- 1000
+    n.dim <- 50
+    if(n.clusters != length(cells.per.cluster)){
+        stop("Number of clusters must equal the length of cells.per.cluster")
+    }
+    
+    if(total.size != sum(cells.per.cluster)){
+        stop("Total sample size must match the sum of cells.per.cluster")
+    }
+    
+    gex.list <- list()
+    for(x in seq_along(1:n.clusters)){
+        block.cells <- cells.per.cluster[x]
+        # select a set of eigen values for the covariance matrix of each block, say 50 eigenvalues?
+        # randomly sample a mean value
+        block.mean <- runif(n=1, min=2, max=7)
+        block.eigens <- sapply(1:n.dim, FUN=function(X) rexp(n=1, rate=abs(runif(n=1, min=0, max=50))))
+        block.eigens <- block.eigens[order(block.eigens)]
+        block.p <- qr.Q(qr(matrix(rnorm(block.cells^2, mean=4, sd=0.01), block.cells)))
+        block.sigma <- crossprod(block.p*block.eigens, block.p*block.eigens)
+        block.gex <- abs(Rfast::rmvnorm(n=r.n, mu=rnorm(n=block.cells, mean=block.mean, sd=0.01), sigma=block.sigma))
+        gex.list[[paste0("Block", x)]] <- block.gex
+        
+    }
+    
+    sim.gex <- do.call(cbind, gex.list)
+    colnames(sim.gex) <- paste0("Cell", 1:ncol(sim.gex))
+    rownames(sim.gex) <- paste0("Gene", 1:nrow(sim.gex))
+    sim.pca <- prcomp_irlba(t(sim.gex), n=50, scale.=TRUE, center=TRUE)
+    
+    if(length(condition.props) != length(cells.per.cluster)){
+        stop("The length of condition.props must be the same as the length of cells.per.cluster")
+    }
+    
+    cond.list <- list()
+    cell.list <- list()
+    for(i in seq_along(condition.props)){
+        set.seed(42)
+        block.cells <- cells.per.cluster[i]
+        cell.list[[paste0("Block", i)]] <- block.cells
+        
+        block.cond <- rep("A", block.cells)
+        block.a <- sample(1:block.cells, size=floor(block.cells*condition.props[i]))
+        block.b <- setdiff(1:block.cells, block.a)
+        block.cond[block.b] <- "B"
+        cond.list[[paste0("Block", i)]] <- block.cond
+    }
+    blocks <- lapply(c(1:length(cell.list)), FUN=function(X) rep(paste0("B", X), cell.list[[X]]))
+    rep.prop <- round(1/length(cells.per.cluster), 2)
+    reps <- lapply(c(1:length(cell.list)), FUN=function(X) c(rep("R1", floor(cell.list[[X]] * rep.prop)),
+                                                             rep("R2", floor(cell.list[[X]] * rep.prop)),
+                                                             rep("R3", cell.list[[X]] - (2*floor(cell.list[[X]] * rep.prop)))))
+    
+    meta.df <- data.frame("Block"=unlist(blocks),
+                          "Condition"=unlist(cond.list),
+                          "Replicate"=unlist(reps))
+    colnames(meta.df) <- c("Block", "Condition", "Replicate")
+    rownames(meta.df) <- paste0("Cell", 1:nrow(meta.df))
+    # define a "sample" as teh combination of condition and replicate
+    meta.df$Sample <- paste(meta.df$Condition, meta.df$Replicate, sep="_")
+    meta.df$Vertex <- c(1:nrow(meta.df))
+    
+    sim.sce <- SingleCellExperiment(assays=list(logcounts=sim.gex),
+                                    reducedDims=list("PCA"=sim.pca$x))
+    
+    sim.mylo <- Milo(sim.sce)
+    return(list("mylo"=sim.mylo, "meta"=meta.df))
+    
+}
+
+```
+
+I have simulated data sets from 500 up to 500000 cells to try to capture a realistic range of experiment sizes.
+
+```{r}
+milo.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+sim.data <- lapply(milo.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+sim.data1 <- sim.data[[1]]
+sim1.umap <- umap(reducedDim(sim.data1$mylo, "PCA")[, c(1:30)],
+                  n_components=2,
+                  n_neighbors=21, metric='euclidean',
+                  init='random', min_dist=0.1)
+
+meta.df <- cbind(sim.data1$meta, sim1.umap$layout)
+colnames(meta.df) <- c("Block", "Condition", "Replicate", "Sample", "Vertex", "UMAP1", "UMAP2")
+
+ggplot(meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Block, shape=Replicate)) +
+  theme_clean() +
+  scale_colour_npg() +
+  facet_wrap(~Condition) +
+  guides(colour=guide_legend(override.aes=list(size=3)),
+         shape=guide_legend(override.aes=list(size=3)))
+```
+
+This is an example UMAP of the data set with 200 cells. I have looped over the Milo objects and build a series of graphs varying $k$ from 5 to 100,
+refined neighbourhoods and performed DA testing at 1% FDR, as well as computing the metrics above.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DA")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+graph.stats <- do.call(rbind.data.frame, kstat.list)
+graph.stats$K <- ordered(graph.stats$K,
+                         levels=c(unique(as.numeric(graph.stats$K))[order(unique(as.numeric(graph.stats$K)), decreasing=FALSE)]))
+graph.stats$NCells <- ordered(graph.stats$NCells,
+                         levels=c(unique(as.numeric(graph.stats$NCells))[order(unique(as.numeric(graph.stats$NCells)), decreasing=FALSE)]))
+
+res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+res.df <- do.call(rbind.data.frame, res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$k <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1]))))
+totdr.df$N <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+The heatmap shows the size of the total data set (#Cells) and the value of $k$ used to construct the graph and neighbourhoods. The tiles are coloured by 
+the proportion of neighbourhoods that DA at a 1 %FDR. This shows that the FDR is very well controlled for the discrete case where there neighbourhoods 
+are highly unlikely to overlap.
+
+We can see the same plot but using the number of total neighbourhoods instead.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k)) +
+    geom_point(shape=21, size=4) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+```
+
+This reinforces the fact that in the 3 discrete cluster context the FDR is properly controlled over a variety of sample sizes and values of $k$.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+graph.melt <- melt(graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+These are the different graph and neighbourhood summary statistics. The connectivity measures aren't very informative, owing to the fact that just 
+removing a single edge or vertex is sufficient to create a disjoint graph. The average node degree increases with $k$ which makes sense as each vertex is 
+able to connect to more vertices. What is perhas more interesting is that within a value of $k$ the node degree saturates fairly quickly, but inversely 
+proportion to the size of the data set. This is also reflected in the variance of the node degree, which still increases implying that with more cells 
+in the data set the range of connections continues to increase, but it is not a universal function, and so some vertices are still only connected to very 
+few other vertices.
+
+The mean neighbourhood size is also very interesting as it increases with $k$, but reaches a peak in the N=5000 data set, before falling, implying that 
+the maximum neighbourhood size is constrained by $k$, and the size of the data set. It looks as if for small values of $k$ this maximal neighbourhood 
+size is reached in smaller data sets. For instace, the maximum mean neighbourhood size for $k=30$ is in the data set with N=1000 cells, but for $k=75$ 
+it is N=10000 cells. These data sets are fairly trivial in their composition, so it will be interesting to see if this holds true for more complex 
+(realistic) simulations. The variance in neighbourhood size also seems to reach a plateau, indicating that it is likewise constrained by both $k$ and 
+the total sample size.
+
+## Conclusion
+
+The 3 discrete clusters case is so trivial that we can properly control the FDR at every sample size and value of $k$. This suggests that the issues 
+that Emma encountered are more likely a matter of continuous trajectories, and are therefore more likely to occur in the kinds of real-world data sets 
+for which we envisage `Milo` will be used on.
+
+# Simulation 1: a single linear trajectory
+
+
+
+
+
