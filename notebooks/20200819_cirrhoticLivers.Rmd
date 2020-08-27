@@ -1,0 +1,112 @@
+---
+title: "Effect of batch correction on Milo results"
+output: html_notebook
+---
+
+```{r}
+library(SeuratData)
+library(tidyverse)
+library(irlba)
+library(DropletUtils)
+library(scater)
+```
+
+Using data from [Ramachandran et al. 2019](https://www.nature.com/articles/s41586-019-1631-3#Sec1) (GEO accessiion: GSE136103)
+
+```{r}
+human_files <- list.files("~/Downloads/GSE136103_RAW", pattern="GSM40411.._healthy|cirrhotic", full.names = TRUE) 
+
+prefixes <- str_remove(human_files, "barcodes.tsv.gz|genes.tsv.gz|matrix.mtx.gz") %>%
+  # str_remove(".+/") %>%
+  unique() 
+
+sce_ls <- lapply(prefixes, function(x) read10xCounts(x, type="prefix"))
+liver_sce <- purrr::reduce(sce_ls, cbind)
+
+## Make colData info
+new_coldata <- colData(liver_sce) %>%
+  data.frame() %>%
+  mutate(Sample=str_remove(Sample, ".+/") %>% str_remove("_$")) %>%
+  separate(Sample, into=c("col1", "Patient", "Sort"), sep = "_", remove=FALSE) %>% 
+  mutate(Condition=str_remove(Patient, ".$")) %>%
+  select(-col1) %>%
+  mutate(Cell_id = str_c(Sample, "_",Barcode)) %>%
+  column_to_rownames("Cell_id")
+
+colnames(liver_sce) <- rownames(new_coldata)
+colData(liver_sce) <- DataFrame(new_coldata)
+
+# saveRDS(liver_sce, "~/GSE136103_SingleCellExperiment.RDS")
+```
+```{r}
+liver_sce <- readRDS("~/GSE136103_SingleCellExperiment.RDS")
+```
+
+QC metrics show that the outlier cells are already filtered (following [this](https://osca.bioconductor.org/overview.html#data-processing-and-downstream-analysis))
+
+```{r, fig.width=10,fig.height=8}
+# is.mito <- grepl("^MT-", rownames(liver_sce))
+qcstats <- perCellQCMetrics(liver_sce)
+
+colData(liver_sce) <- cbind(colData(liver_sce), qcstats)
+
+plotColData(liver_sce, x="Sample", y = "total", other_fields = "Condition") +
+  scale_y_log10() +
+  facet_wrap(~Condition, scales = "free") +
+  ggtitle("total counts") 
+
+plotColData(liver_sce, x="Sample", y = "detected", other_fields = "Condition") +
+  facet_wrap(~Condition, scales = "free") +
+  ggtitle("Detected genes") 
+
+```
+
+### Normalization
+
+```{r}
+lib_sf <- librarySizeFactors(liver_sce)
+hist(log10(lib_sf), xlab="Log10[Size factor]", col='grey80')
+```
+```{r}
+set.seed(100)
+liver_sce <- logNormCounts(liver_sce)
+assayNames(liver_sce)
+```
+
+### Feature selection
+
+```{r}
+library(scran)
+dec_liver <- modelGeneVar(liver_sce)
+
+# Visualizing the fit:
+fit_liver <- metadata(dec_liver)
+plot(fit_liver$mean, fit_liver$var, xlab="Mean of log-expression",
+    ylab="Variance of log-expression")
+
+hvgs <- getTopHVGs(dec_liver, n=3000)
+```
+
+
+
+### Dim reduction
+
+```{r, fig.height=14, fig.width=14}
+liver_sce <- scater::runPCA(liver_sce, subset_row=hvgs, ncomponents=30)
+reducedDim(liver_sce, "PCA") <- reducedDim(liver_sce, "PCA")[,1:11]
+plotPCA(liver_sce, colour_by="Condition", ncomponents=3)
+```
+
+```{r, fig.height=8, fig.width=8}
+liver_sce <- runUMAP(liver_sce, dimred="PCA", ncomponents=2)
+
+scater::plotUMAP(liver_sce, colour_by="Condition", point_alpha=1,  point_size=0.8) 
+scater::plotUMAP(liver_sce, colour_by="Sort", point_alpha=0.3,  point_size=0.5)
+scater::plotUMAP(liver_sce, colour_by="Patient", point_alpha=0.3,  point_size=0.5)
+```
+```{r, fig.height=10, fig.width=10}
+rownames(liver_sce) <- rowData(liver_sce)$Symbol
+scater::plotUMAP(liver_sce, colour_by="CD3D", point_alpha=0.3, point_size=0.5)
+```
+
+
