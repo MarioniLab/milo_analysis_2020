@@ -16,6 +16,7 @@ states.
 library(ggplot2)
 library(igraph)
 library(ggthemes)
+library(biomaRt)
 library(ggsci)
 library(umap)
 library(reshape2)
@@ -25,9 +26,12 @@ library(scater)
 library(igraph)
 library(miloR)
 library(cowplot)
+library(limma)
 library(RColorBrewer)
 library(pheatmap)
 library(irlba)
+library(tidyr)
+library(dplyr)
 library(ggbeeswarm)
 library(colorspace)
 ```
@@ -283,12 +287,169 @@ ggsave("~/Dropbox/Milo/figures/Thymus_ResByCluster.pdf",
 That's super interesing! There is a subset of `Intertypical TEC` that are diminished with age - we definitely didn't see that until the lineage-tracing 
 experiments. I wonder if these are the mTEC-biased precursors - the gene expression data will be useful here!
 
+To perform DE testing across DA neighbourhoods I'll merge the adjacent neighbourhoods with the same logFC sign that are significantly DA. For the purposes 
+of this illustration I'll use just the Intertypical TEC.
+
+```{r, warning=FALSE, message=FALSE}
+itec.mylo <- thymus.mylo[, colData(thymus.mylo)$Cluster %in% c("Intertypical TEC")]
+itec.res <- thymus.res[thymus.res$Cluster %in% c("Intertypical TEC"), ]
+```
+
+I'll require adjacent neighbourhoods to share at least one cell.
+
+```{r, warning=FALSE, message=FALSE}
+.group_nhoods_by_overlap <- function(nhs){
+  ll_names <- expand.grid(names(nhs), names(nhs)) 
+  
+  lintersect <- sapply(1:nrow(ll_names), function(x) length(intersect(nhs[[ll_names[x,1]]], nhs[[ll_names[x,2]]]))) 
+  ## Count as connected only nhoods with at least n shared cells
+  n=5
+  lintersect_filt <- ifelse(lintersect < n, 0, lintersect)
+  
+  ## Convert to adjacency matrix (values = no of common cells)
+  d <- matrix(lintersect_filt, nrow = length(nhs), byrow = TRUE)
+  
+  g <- graph_from_adjacency_matrix(d)
+  groups <- components(g)$membership
+  return(groups)  
+}
+
+.cells_in_nhood_groups <- function(nhs, gr){
+  ls <- list()
+  for (g in unique(gr)){
+    nhs_ls <- lapply(nhs[which(gr==g)], function(x) as.vector(x))
+    cells <- purrr::reduce(nhs_ls, union)
+    ls[[g]] <- cells
+  }
+  return(ls)
+}
+```
 
 
+```{r, warning=FALSE, message=FALSE}
+pos_nhoods <- itec.res[itec.res$SpatialFDR <= 0.01 & itec.res$logFC > 0, ]$Nhood
+neg_nhoods <- itec.res[itec.res$SpatialFDR <= 0.01 & itec.res$logFC < 0, ]$Nhood
+```
 
 
+```{r, warning=FALSE, message=FALSE}
+group_negs <- .group_nhoods_by_overlap(nhoods(itec.mylo)[neg_nhoods])
+cells_neg <- rownames(colData(itec.mylo))[unlist(.cells_in_nhood_groups(nhoods(itec.mylo)[neg_nhoods], group_negs))]
+cells_neg <- cells_neg[!is.na(cells_neg)]
+neg.df <- data.frame("CellID"=cells_neg, "nhood_group"=rep(paste0("negLogFC_", unique(group_negs)), length(unlist(cells_neg))))
+
+group_pos <- .group_nhoods_by_overlap(nhoods(itec.mylo)[pos_nhoods])
+cells_pos <- rownames(colData(itec.mylo))[unlist(.cells_in_nhood_groups(nhoods(itec.mylo)[pos_nhoods], group_pos))]
+cells_pos <- cells_pos[!is.na(cells_pos)]
+pos.df <- data.frame("CellID"=cells_pos, "nhood_group"=rep(paste0("posLogFC_", unique(group_pos)), length(unlist(cells_pos))))
+
+test_groups_df <- do.call(rbind.data.frame, list("neg"=neg.df, "pos"=pos.df))
+test_groups_df <- test_groups_df[!duplicated(test_groups_df$CellID), ]
+
+colData(itec.mylo)$test_groups <- NA
+colData(itec.mylo)[unique(test_groups_df$CellID), ]$test_groups <- as.character(test_groups_df$nhood_group)
+```
 
 
+```{r, warning=FALSE, message=FALSE}
+# subset to just the HVGs
+itec.hvg <- modelGeneVar(itec.mylo)
+itec.hvgs <- getTopHVGs(itec.hvg, n=5000)
+
+# find markers between logFC groups
+itec.meta <- colData(itec.mylo)[!is.na(colData(itec.mylo)$test_groups), ]
+itec.exprs <- logcounts(itec.mylo[itec.hvgs, !is.na(colData(itec.mylo)$test_groups)])
+
+# itec.design <- model.matrix(object = ~ 0 + test_groups, data=itec.meta)
+itec.design <- model.matrix(object = ~ Age, data=itec.meta)
+#itec.constrasts <- makeContrasts(test_groupsposLogFC_1 - test_groupsnegLogFC_1, levels=itec.design)
+itec.fit <- lmFit(itec.exprs, itec.design)
+#itec.fit <- contrasts.fit(itec.fit, itec.constrasts)
+itec.fit <- eBayes(itec.fit)
+
+itec.markers <- as.data.frame(topTable(itec.fit, coef=2, number = Inf, sort.by = "p", p.value = 1))
+itec.markers$adj.P.Val[is.na(itec.markers$adj.P.Val)] <- 1
+itec.markers$logFC[is.infinite(itec.markers$logFC)] <- 0
+
+itec.markers$Sig <- as.character(as.numeric(itec.markers$adj.P.Val <= 0.01))
+itec.markers$Diff <- sign(itec.markers$logFC)
+itec.markers$Diff[itec.markers$Sig == 0] <- 0
+table(itec.markers$Diff)
+```
+
+These are the genes that are DE across ages in the Intertypical TEC and amongst the top 5000 HVGs at 1% FDR. For each DE gene I'll calculate the % of cells 
+in the corresponding neighbourhood that express that gene.
+
+```{r, warning=FALSE, message=FALSE}
+.calculate_nhood_perc_expression <- function(milo, nhoods, gene){
+    perc_expr <- sapply(nhoods(milo)[nhoods], FUN=function(X) sum(logcounts(milo[gene, as.numeric(X)]) > 0)/length(X))
+    perc_expr <- setNames(perc_expr, nhoods)
+    
+    sink(file="/dev/null")
+    gc()
+    sink(file=NULL)
+    
+    return(perc_expr)
+}
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+biomaRt.connection <- useMart("ensembl", "mmusculus_gene_ensembl")
+
+gene.df <- getBM(attributes = c("ensembl_gene_id", "external_gene_name", "chromosome_name"),
+                 filters="ensembl_gene_id", 
+                 values=rownames(thymus.mylo), mart=biomaRt.connection)
+rownames(gene.df) <- gene.df$ensembl_gene_id
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+sig.markers <- itec.markers[itec.markers$adj.P.Val <= 0.01, ]
+top.genes <- rownames(sig.markers[order(sig.markers$t, decreasing=TRUE), ])[1:20]
+bottom.genes <- rownames(sig.markers[order(sig.markers$t, decreasing=FALSE), ])[1:20]
+plot.genes <- c(top.genes, bottom.genes)
+gene.symbols <- gene.df[plot.genes, ]$external_gene_name
+itec.nhoods <- itec.res$Nhood
+pc.exprs <- sapply(plot.genes, FUN=function(G) .calculate_nhood_perc_expression(thymus.mylo, itec.nhoods, G))
+pc.exprs <- as.data.frame(pc.exprs)
+colnames(pc.exprs) <- gene.symbols
+pc.exprs$Nhood <- rownames(pc.exprs)
+pc.exprs.merge <- merge(pc.exprs, itec.res, by='Nhood')
+pc.exprs.merge$logFC_rank <- rank(pc.exprs.merge$logFC)
+```
+
+
+```{r, fig.height=8.95, fig.width=7.95, message=FALSE, warning=FALSE}
+pl_top <- pc.exprs.merge %>%
+    mutate(is_signif = ifelse(SpatialFDR < 0.01, "SpatialFDR < 0.01", NA)) %>%
+    ggplot(aes(logFC_rank, logFC)) +
+    geom_hline(yintercept = 0, linetype=2) +
+    geom_point(size=1) +
+    geom_point(data=.%>% filter(!is.na(is_signif)), aes(color=is_signif), size=1.0) +
+    theme_bw() +
+    scale_color_manual(values="red", name="") +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank(),
+          axis.text.y=element_text(size=11, colour='black'),
+          axis.title.y=element_text(size=12, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=3)))
+     
+pl_bottom <- pc.exprs.merge %>%
+    pivot_longer(cols=gene.symbols, names_to='feature', values_to="perc_expressed") %>%
+    ggplot(aes(logFC_rank, reorder(feature, logFC_rank, mean), fill=perc_expressed)) + 
+    geom_tile() +
+    labs(x="logFC Rank", y="Gene") +
+    scale_fill_viridis_c(option="magma") +
+    ggbio::theme_clear() +
+    theme(axis.text=element_text(size=11, colour='black'),
+          axis.title=element_text(size=12, colour='black')) +
+    guides(fill=guide_colourbar(title="%Expressed"))
+  
+plot_grid(pl_top, pl_bottom, ncol=1, rel_heights = c(0.25,1))
+
+ggsave("~/Dropbox/Milo/figures/AgeingThymus_iTEC_DEgenes.pdf",
+       height=8.95, width=7.95, useDingbats=FALSE)
+```
 
 
 
