@@ -1,0 +1,300 @@
+---
+title: "Milo: ageing mouse thymus"
+output: html_notebook
+---
+
+# Introduction
+
+In our recent paper []() we found that age reduces the differentiation of TEC precursors towards the medulla lineage. This came from clustering and 
+annotating our single-cell data, and finding that a specific cluster (Intertypical TEC) expand with age. Subsequently, we identifed a specific subset of 
+Intertypical TEC within which this defect manifests, but only after performing a much larger experiment with ~90,000 single-cells; our original experiment 
+contained just 2000 cells. I will use `Milo` to identify the differential abundance of these neighbourhoods, and the genes associated with these perturbed 
+states.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+### Set up a mock data set using simulated data
+library(ggplot2)
+library(igraph)
+library(ggthemes)
+library(ggsci)
+library(umap)
+library(reshape2)
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(igraph)
+library(miloR)
+library(cowplot)
+library(RColorBrewer)
+library(pheatmap)
+library(irlba)
+library(ggbeeswarm)
+library(colorspace)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+thymus.data <- readRDS("~/Dropbox/Milo/simulations/data/AgeThymus_Down1_RealDA_read.RDS")
+thymus.meta <- thymus.data$meta
+thymus.meta$AgeInt <- as.numeric(as.character(gsub(thymus.meta$Age, pattern="wk", replacement="")))
+thymus.mylo <- thymus.data$mylo
+```
+
+I'm going to re-do the PCA on these data as I need the loadings to be able to project the neighbourhoods into the same space as the single cells. This means 
+that the representation will be slightly different.
+
+```{r, warning=FALSE, message=FALSE}
+thymus.hvg <- read.table("~/Dropbox/AgeingExperiment/Thymus_HVG.tsv", sep="\t", header=TRUE, stringsAsFactors=FALSE)
+
+thymus.pca <- prcomp_irlba(t(logcounts(thymus.mylo[rownames(thymus.mylo) %in% thymus.hvg$gene_id[thymus.hvg$HVG],])), 
+                           n=50, center=TRUE, scale.=TRUE)
+reducedDim(thymus.mylo, "PCA") <- thymus.pca$x
+attr(reducedDim(thymus.mylo, "PCA"), "rotation") <- thymus.pca$rotation
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=6.75}
+sim1.umap <- umap(reducedDim(thymus.mylo, "PCA")[, c(1:15)],
+                  n_components=2,
+                  n_neighbors=30, metric='euclidean',
+                  init='random', min_dist=0.25)
+
+meta.df <- cbind(thymus.meta, sim1.umap$layout)
+colnames(meta.df) <- c(colnames(thymus.meta), "UMAP1", "UMAP2")
+# add the label annotation
+meta.df$Cluster <- "Unknown"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 2] <- "Intertypical TEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 9] <- "Perinatal cTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 3] <- "Mature cTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 7] <- "Mature mTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 1] <- "Post-Aire mTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 5] <- "Tuft-like mTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 6] <- "Proliferating TEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 8] <- "nTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 10] <- "sTEC"
+
+ggplot(meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Cluster)) +
+  theme_clean() +
+  scale_colour_npg() +
+  guides(colour=guide_legend(override.aes=list(size=3), title="TEC subtype"))
+```
+
+This is a UMAP representation of the ageing single-cell data, coloured by the original clustering. We can see the same plot across ages (our experimental 
+variable of interest).
+
+```{r, message=FALSE, warning=FALSE, fig.height=7.15, fig.width=9.75}
+ggplot(meta.df, aes(x=UMAP1, y=UMAP2)) +
+    geom_point(data=meta.df[, c("UMAP1", "UMAP2")],
+               colour='grey80', alpha=0.5, size=0.5) +
+    geom_point(aes(colour=Cluster)) +
+    theme_clean() +
+    scale_colour_npg() +
+    facet_wrap(~AgeInt) +
+    guides(colour=guide_legend(override.aes=list(size=3), title="TEC subtype"))
+
+ggsave("~/Dropbox/Milo/figures/AgeingThymus_UMAP_Agefacet.png",
+       height=7.15, width=9.75, dpi=300)
+```
+
+I'll now use `Milo` to build the graph, define neighbourhoods and perform DA testing.
+
+```{r}
+thymus.meta$ExpSamp <- paste(thymus.meta$Age, thymus.meta$SortDay, sep="_")
+sim.reps <- unlist(lapply(strsplit(unique(thymus.meta$ExpSamp), split="_"), FUN=function(X) paste0(X[2]))) 
+sim.cond <- unlist(lapply(strsplit(unique(thymus.meta$ExpSamp), split="_"), FUN=function(X) paste0(X[1])))
+testing.meta <- data.frame("Condition"=sim.cond, "Replicate"=sim.reps)  
+testing.meta$Sample <- paste(testing.meta$Condition, testing.meta$Replicate, sep="_")
+testing.meta$AgeInt <- as.numeric(as.character(gsub(testing.meta$Condition, pattern="wk", replacement="")))
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+thymus.mylo <- buildGraph(thymus.mylo, k=30, d=30, seed=42)
+thymus.mylo <- makeNhoods(thymus.mylo, prop=0.25, k=30, d=15, refined=TRUE, reduced_dims="PCA")
+thymus.mylo <- countCells(thymus.mylo, meta.data=thymus.meta, samples="ExpSamp")
+```
+
+What is the distribution of neighbourhood sizes?
+
+```{r, warning=FALSE, message=FALSE, fig.height=3.25, fig.width=4.95}
+plotNhoodSizeHist(thymus.mylo)
+```
+
+This shows that the mean neighbourhood size is ~50-60, that should give us enough cell counts for DA testing.
+
+```{r, warning=FALSE, message=FALSE}
+thymus.res <- testNhoods(thymus.mylo, design=~AgeInt, design.df=testing.meta, fdr.weighting="k-distance")
+thymus.res$Diff <- sign(thymus.res$logFC)
+thymus.res$Diff[thymus.res$SpatialFDR > 0.01] <- 0
+table(thymus.res$Diff)
+```
+
+From this we can see that 64 neighbourhoods are depleted with age and 77 are enriched - but what are they? We can project our neighbourhoods into the same 
+space as our single-cells to visualise where these DA neighbourhoods are.
+
+```{r, warning=FALSE, message=FALSE}
+max.lfc <- max(abs(thymus.res$logFC))
+
+ggplot(thymus.res, aes(x=logFC, y=-log10(SpatialFDR), colour=as.character(Diff))) +
+    geom_hline(yintercept=-log10(0.1), lty=2, colour='grey50') +
+    geom_point(size=3) +
+    scale_x_continuous(limits=c(-max.lfc-0.1, max.lfc+0.1)) +
+    theme_cowplot() +
+    scale_colour_manual(values=c("firebrick2", "grey80", "firebrick2")) +
+    guides(colour=FALSE) +
+    labs(x="log Fold Change", y=expression(paste("-log"[10], " Spatial FDR")))
+
+ggsave("~/Dropbox/Milo/figures/Thymus_Volcano.pdf",
+       height=3.15, width=3.95, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+thymus.mylo <- calcNhoodExpression(thymus.mylo, subset.row=rownames(thymus.mylo) %in% thymus.hvg$gene_id[thymus.hvg$HVG])
+thymus.mylo <- projectNhoodExpression(thymus.mylo, d=15, reduced_dims="PCA", scale=FALSE, center=TRUE)
+```
+
+First let's look at the UMAP of the projected neighbourhoods, then the joint UMAP with the single-cell data.
+
+```{r, warning=FALSE, message=FALSE}
+rownames(meta.df) <- meta.df$Sample
+colData(thymus.mylo)$Cluster <- factor(meta.df[colnames(thymus.mylo), ]$Cluster)
+colData(thymus.mylo)$Age <- ordered(meta.df[colnames(thymus.mylo), ]$AgeInt, levels=c(1, 4, 16, 32, 52))
+colData(thymus.mylo)$SortDay <- meta.df[colnames(thymus.mylo), ]$SortDay
+
+add_nhood_coldata_to_res <- function(thymus.mylo, milo_res, coldata_col){
+  nhood_counts <- sapply(seq_along(nhoods(thymus.mylo)), function(x) table(colData(thymus.mylo)[as.vector(nhoods(thymus.mylo)[[x]]), coldata_col]))
+  nhood_counts <- t(nhood_counts)
+  rownames(nhood_counts) <- seq_along(nhoods(thymus.mylo))
+  max_val <- apply(nhood_counts, 1, function(x) colnames(nhood_counts)[which.max(x)])
+  max_frac <- apply(nhood_counts, 1, function(x) max(x)/sum(x))
+  milo_res[coldata_col] <- max_val
+  milo_res[paste0(coldata_col, "_fraction")] <- max_frac
+  return(milo_res)
+}
+
+thymus.res <- add_nhood_coldata_to_res(thymus.mylo, thymus.res, "Age")
+thymus.res <- add_nhood_coldata_to_res(thymus.mylo, thymus.res, "Cluster")
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+thymus.nhood.umap <- umap(nhoodReducedDim(thymus.mylo)[, c(1:15)],
+                          n_components=2,
+                          n_neighbors=30, metric='cosine',
+                          init='random', min_dist=0.7)
+
+is.nhood <- grepl(rownames(nhoodReducedDim(thymus.mylo)), pattern="nh")
+thymus.nhood.meta <- cbind(thymus.res, thymus.nhood.umap$layout[is.nhood, ])
+colnames(thymus.nhood.meta) <- c(colnames(thymus.res), "NH.UMAP1", "NH.UMAP2")
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(thymus.nhood.meta, aes(x=NH.UMAP1, y=NH.UMAP2)) +
+    geom_point(data=thymus.nhood.meta[thymus.nhood.meta$SpatialFDR > 0.01, ],
+               size=1, colour='grey80', alpha=0.5) +
+    geom_point(data=thymus.nhood.meta[thymus.nhood.meta$SpatialFDR <= 0.01, ],
+               size=3, aes(colour=logFC)) +
+    theme_clean() +
+    scale_colour_gsea()
+```
+
+This shows us the logFC of the DA neighbourhoods - but which populations and states do these correspond to?
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=6.75}
+thymus.notNH.umap <- as.data.frame(thymus.nhood.umap$layout[!is.nhood, ])
+colnames(thymus.notNH.umap) <- c("NH.UMAP1", "NH.UMAP2")
+thymus.notNH.umap$Sample <- rownames(thymus.nhood.umap$layout[!is.nhood, ])
+thymus.notNH.meta <- merge(meta.df, thymus.notNH.umap, by='Sample')
+```
+
+We can also visualise this by breaking down the neighbourhoods into their respective clusters.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=6.75}
+ggplot(mapping=aes(x=NH.UMAP1, y=NH.UMAP2)) +
+    geom_point(data=thymus.notNH.meta, shape=21,
+               aes(fill=Cluster)) +
+    theme_clean() +
+    scale_fill_npg() +
+    scale_colour_gsea() +
+    guides(fill=guide_legend(override.aes=list(alpha=1, size=3))) +
+    labs(x="UMAP1", y="UMAP2")
+
+ggsave("~/Dropbox/Milo/figures/AgeingThymus_UMAP.png",
+       height=4.15, width=6.75, dpi=300)
+```
+
+
+```{r, message=FALSE, warning=FALSE, fig.height=7.15, fig.width=9.75}
+ggplot(mapping=aes(x=NH.UMAP1, y=NH.UMAP2)) +
+    geom_point(data=thymus.notNH.meta[, c("NH.UMAP1", "NH.UMAP2")],
+               colour='grey80', alpha=0.5, size=0.5) +
+    geom_point(data=thymus.notNH.meta, shape=21,
+               aes(fill=Cluster)) +
+    theme_clean() +
+    scale_fill_npg() +
+    scale_colour_gsea() +
+    facet_wrap(~AgeInt) +
+    guides(fill=guide_legend(override.aes=list(alpha=1, size=3))) +
+    labs(x="UMAP1", y="UMAP2")
+
+ggsave("~/Dropbox/Milo/figures/AgeingThymus_UMAP_Agefacet.png",
+       height=7.15, width=9.75, dpi=300)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=6.75}
+ggplot(mapping=aes(x=NH.UMAP1, y=NH.UMAP2)) +
+    geom_point(data=thymus.nhood.meta[thymus.nhood.meta$SpatialFDR > 0.01, ],
+               size=1, colour='grey80', alpha=0.5) +
+    geom_point(data=thymus.notNH.meta, shape=21, alpha=0.1,
+               aes(fill=Cluster)) +
+    geom_point(data=thymus.nhood.meta[thymus.nhood.meta$SpatialFDR <= 0.01, ],
+               size=3, aes(colour=logFC)) +
+    theme_clean() +
+    scale_fill_npg() +
+    scale_colour_gradient2(low=darken('blue'), mid='white', high=darken('#ff0000')) +
+    guides(fill=FALSE) +
+    labs(x="UMAP1", y="UMAP2")
+
+ggsave("~/Dropbox/Milo/figures/AgeingThymus_NhoodUMAP_logFC.png",
+       height=4.15, width=6.75, dpi=300)
+```
+
+These UMAPs are all well and good, but what about the exact clusters?
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+ggplot(mapping=aes(x=Cluster, y=logFC)) +
+    geom_quasirandom(data=thymus.res[thymus.res$SpatialFDR > 0.01,], 
+                     alpha=0.75, colour='grey50', size=2) + 
+    geom_quasirandom(data=thymus.res[thymus.res$SpatialFDR <= 0.01,], 
+                     aes(colour=logFC), size=2) + 
+    coord_flip() +
+    facet_wrap(~Cluster, scales="free_y") +
+    scale_colour_gradient2(low=darken('blue'), mid='grey80', high=darken('#ff0000')) +
+    expand_limits(y=c(0)) +
+    theme_clean()
+
+ggsave("~/Dropbox/Milo/figures/Thymus_ResByCluster.pdf",
+       height=4.95, width=9.95, useDingbats=FALSE)
+```
+
+That's super interesing! There is a subset of `Intertypical TEC` that are diminished with age - we definitely didn't see that until the lineage-tracing 
+experiments. I wonder if these are the mTEC-biased precursors - the gene expression data will be useful here!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
