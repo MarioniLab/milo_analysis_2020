@@ -6,7 +6,8 @@ output: html_notebook
 # Introduction
 
 A key test of `Milo` is how it compare to other other methods. For this we need a ground truth that is vaguely realistic. I will use the linear 
-trajectory simulation with 5000 cells.  The methods against which I will make this comparison are:
+trajectory simulation with 5000 cells where a single middle group of cells are differentially abundant between conditions.  The methods against which 
+I will make this comparison are:
 
 * Cluster-based: Louvain and Walktrap
 * Cydar
@@ -38,9 +39,9 @@ library(cydar)
 I'll use the simple linear trajectory data set for this with ~2000 cells and genuinely DA regions.
 
 ```{r, warning=FALSE, message=FALSE}
-n.dim <- 20
-k <- 50
-sim.data <- readRDS("~/Dropbox/Milo/simulations/data/Trajectory_Ncells5000_M1DA_simpleSim.RDS")
+n.dim <- 15
+k <- 30
+sim.data <- readRDS("~/Dropbox/Milo/simulations/data/Trajectory_Ncells2000_M3DA_simpleSim.RDS")
 sim.mylo <- sim.data$mylo
 sim.meta <- sim.data$meta
 sim.mylo <- buildGraph(sim.mylo, k=k, d=n.dim, seed=42)
@@ -49,7 +50,7 @@ sim.mylo
 
 I'll create an embedding that can be used across all comparisons.
 
-```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=5.15}
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=8.25}
 set.seed(42)
 sim.graph <- miloR::graph(sim.mylo)
 sim.fr_layout <- layout_with_fr(sim.graph)
@@ -65,7 +66,11 @@ ggplot(sim.fr.df, aes(x=V1, y=V2)) +
     theme_cowplot() +
     theme(axis.line=element_blank(), axis.ticks=element_blank(),
           axis.text=element_blank(), axis.title=element_blank()) +
-    guides(colour=guide_legend("Ground.Truth"))
+    guides(colour=guide_legend("Ground.Truth")) +
+    facet_wrap(~Condition, nrow=1)
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_GroundTruth.png",
+       height=4.15, width=8.25, dpi=300)
 ```
 
 
@@ -79,7 +84,7 @@ test.meta <- data.frame("Condition"=c(rep("A", 3), rep("B", 3)),
 test.meta$Sample <- paste(test.meta$Condition, test.meta$Replicate, sep="_")
 rownames(test.meta) <- test.meta$Sample
 
-sim.mylo <- makeNhoods(sim.mylo, k=k, d=n.dim, prop=0.5, refined=TRUE)
+sim.mylo <- makeNhoods(sim.mylo, k=k, d=n.dim, prop=0.75, refined=TRUE)
 sim.mylo <- miloR::countCells(sim.mylo, samples="Sample", meta.data=as.data.frame(sim.meta))
 mylo.res <- testNhoods(sim.mylo, design=~Condition, design.df=test.meta[colnames(nhoodCounts(sim.mylo)), ])
 mylo.res$Diff <- sign(mylo.res$logFC)
@@ -115,14 +120,14 @@ The key paramater for `Cydar` is the radius of the hyperspheres - this can be se
 increasing values of $r$.
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-sim.dist <- neighborDistances(sim.cydar, neighbors=50, as.tol=TRUE)
+sim.dist <- neighborDistances(sim.cydar, neighbors=75, as.tol=TRUE)
 boxplot(sim.dist)
 ```
 
 This looks like the distances plateau after ~1.5 We can then count cells in hyperspheres and perform DA testing using `edgeR`.
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-sim.cydar <- cydar::countCells(sim.cydar, tol=1.5, filter=0, downsample=3)
+sim.cydar <- cydar::countCells(sim.cydar, tol=2.0, filter=0, downsample=3)
 message(paste0("Created ", nrow(sim.cydar), " hyperspheres"))
 
 # do DA testing with edgeR
@@ -145,7 +150,7 @@ is.sig <- cydar.res$SpatialFDR <= 0.1
 summary(is.sig)
 ```
 
-`Cydar` finds ~200 DA hyperspheres in this example.
+`Cydar` finds 363 DA hyperspheres in this example.
 
 # DAseq
 
@@ -249,7 +254,7 @@ As stated above, I will assess the performance of each methods by calculating th
 _should not be_.
 
 ```{r, warning=FALSE}
-true.da.cells <- sim.meta$cell_id[sim.meta$group_id %in% "M1"]
+true.da.cells <- sim.meta$cell_id[sim.meta$group_id %in% "M3"]
 milo.da.cells <- unique(sim.meta$cell_id[unique(unlist(nhoods(sim.mylo)[mylo.res$Nhood[mylo.res$Diff != 0]]))])
 cydar.da.cells <- sim.meta$cell_id[unique(unlist(cellAssignments(sim.cydar)[as.numeric(rownames(cydar.res)[cydar.res$SpatialFDR <= 0.1])]))]
 louvain.da.cells <- sim.clust.merge$cell_id[sim.clust.merge$Louvain.Clust %in% rownames(louvain.res)[louvain.res$FDR <= 0.1]]
@@ -305,43 +310,43 @@ daseq.ppv <- daseq.confuse.list$TP/(daseq.confuse.list$TP + daseq.confuse.list$F
 milo.fdr <- milo.confuse.list$FP/(milo.confuse.list$TP + milo.confuse.list$FP)
 cydar.fdr <- cydar.confuse.list$FP/(cydar.confuse.list$TP + cydar.confuse.list$FP)
 louvain.fdr <- louvain.confuse.list$FP/(louvain.confuse.list$TP + louvain.confuse.list$FP)
-walktrap.fdr <- daseq.confuse.list$FP/(walktrap.confuse.list$TP + walktrap.confuse.list$FP)
-daseq.fdr <- milo.confuse.list$FP/(daseq.confuse.list$TP + daseq.confuse.list$FP)
+walktrap.fdr <- walktrap.confuse.list$FP/(walktrap.confuse.list$TP + walktrap.confuse.list$FP)
+daseq.fdr <- daseq.confuse.list$FP/(daseq.confuse.list$TP + daseq.confuse.list$FP)
 
 milo.fnr <- milo.confuse.list$FN/(milo.confuse.list$TP + milo.confuse.list$FN)
 cydar.fnr <- cydar.confuse.list$FN/(cydar.confuse.list$TP + cydar.confuse.list$FN)
 louvain.fnr <- louvain.confuse.list$FN/(louvain.confuse.list$TP + louvain.confuse.list$FN)
-walktrap.fnr <- daseq.confuse.list$FN/(walktrap.confuse.list$TP + walktrap.confuse.list$FN)
-daseq.fnr <- milo.confuse.list$FN/(daseq.confuse.list$TP + daseq.confuse.list$FN)
+walktrap.fnr <- walktrap.confuse.list$FN/(walktrap.confuse.list$TP + walktrap.confuse.list$FN)
+daseq.fnr <- daseq.confuse.list$FN/(daseq.confuse.list$TP + daseq.confuse.list$FN)
 
 milo.fpr <- milo.confuse.list$FP/(milo.confuse.list$FP + milo.confuse.list$TN)
 cydar.fpr <- cydar.confuse.list$FP/(cydar.confuse.list$FP + cydar.confuse.list$TN)
 louvain.fpr <- louvain.confuse.list$FP/(louvain.confuse.list$FP + louvain.confuse.list$TN)
-walktrap.fpr <- daseq.confuse.list$FP/(walktrap.confuse.list$FP + walktrap.confuse.list$TN)
-daseq.fpr <- milo.confuse.list$FP/(daseq.confuse.list$FP + daseq.confuse.list$TN)
+walktrap.fpr <- walktrap.confuse.list$FP/(walktrap.confuse.list$FP + walktrap.confuse.list$TN)
+daseq.fpr <- daseq.confuse.list$FP/(daseq.confuse.list$FP + daseq.confuse.list$TN)
 
 milo.for <- milo.confuse.list$FN/(milo.confuse.list$FN + milo.confuse.list$TN)
 cydar.for <- cydar.confuse.list$FN/(cydar.confuse.list$FN + cydar.confuse.list$TN)
 louvain.for <- louvain.confuse.list$FN/(louvain.confuse.list$FN + louvain.confuse.list$TN)
-walktrap.for <- daseq.confuse.list$FN/(walktrap.confuse.list$FN + walktrap.confuse.list$TN)
-daseq.for <- milo.confuse.list$FN/(daseq.confuse.list$FN + daseq.confuse.list$TN)
+walktrap.for <- walktrap.confuse.list$FN/(walktrap.confuse.list$FN + walktrap.confuse.list$TN)
+daseq.for <- daseq.confuse.list$FN/(daseq.confuse.list$FN + daseq.confuse.list$TN)
 
 milo.tpr <- milo.confuse.list$TP/(milo.confuse.list$TP + milo.confuse.list$FN)
 cydar.tpr <- cydar.confuse.list$TP/(cydar.confuse.list$TP + cydar.confuse.list$FN)
 louvain.tpr <- louvain.confuse.list$TP/(louvain.confuse.list$TP + louvain.confuse.list$FN)
-walktrap.tpr <- daseq.confuse.list$TP/(walktrap.confuse.list$TP + walktrap.confuse.list$FN)
+walktrap.tpr <- walktrap.confuse.list$TP/(walktrap.confuse.list$TP + walktrap.confuse.list$FN)
 daseq.tpr <- daseq.confuse.list$TP/(daseq.confuse.list$TP + daseq.confuse.list$FN)
 
 milo.tnr <- milo.confuse.list$TN/(milo.confuse.list$TN + milo.confuse.list$FP)
 cydar.tnr <- cydar.confuse.list$TN/(cydar.confuse.list$TN + cydar.confuse.list$FP)
 louvain.tnr <- louvain.confuse.list$TN/(louvain.confuse.list$TN + louvain.confuse.list$FP)
-walktrap.tnr <- daseq.confuse.list$TN/(walktrap.confuse.list$TN + walktrap.confuse.list$FP)
+walktrap.tnr <- walktrap.confuse.list$TN/(walktrap.confuse.list$TN + walktrap.confuse.list$FP)
 daseq.tnr <- daseq.confuse.list$TN/(daseq.confuse.list$TN + daseq.confuse.list$FP)
 
 milo.npv <- milo.confuse.list$TN/(milo.confuse.list$TN + milo.confuse.list$FN)
 cydar.npv <- cydar.confuse.list$TN/(cydar.confuse.list$TN + cydar.confuse.list$FN)
 louvain.npv <- louvain.confuse.list$TN/(louvain.confuse.list$TN + louvain.confuse.list$FN)
-walktrap.npv <- daseq.confuse.list$TN/(walktrap.confuse.list$TN + walktrap.confuse.list$FN)
+walktrap.npv <- walktrap.confuse.list$TN/(walktrap.confuse.list$TN + walktrap.confuse.list$FN)
 daseq.npv <- daseq.confuse.list$TN/(daseq.confuse.list$TN + daseq.confuse.list$FN)
 
 da.fdr.df <- data.frame("Method"=c("Milo", "Cydar", "Louvain", "Walktrap", "DAseq"),
@@ -356,42 +361,68 @@ da.fdr.df <- data.frame("Method"=c("Milo", "Cydar", "Louvain", "Walktrap", "DAse
 da.fdr.df$MCC <- sqrt(da.fdr.df$PPV * da.fdr.df$TPR * da.fdr.df$TNR * da.fdr.df$NPV) - 
     sqrt(da.fdr.df$FDR * da.fdr.df$FNR * da.fdr.df$FPR * da.fdr.df$FOR)
 da.fdr.df$F1 <- 2*((da.fdr.df$PPV * da.fdr.df$TPR)/(da.fdr.df$PPV + da.fdr.df$TPR))
+da.fdr.df$Power <- 1 - da.fdr.df$FNR
 ```
 
 I've compute the confusion matrix for each method, from which I have calculated the precision (positive predictive value), recall (TPR), FDR and 
 Matthews correlation coefficient (MCC).
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
 ggplot(da.fdr.df, aes(x=reorder(Method, -PPV), y=PPV)) +
     geom_bar(stat='identity') +
     theme_clean() +
     labs(x="DA Method", y="PPV")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_PPV.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
 ```
 
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
 ggplot(da.fdr.df, aes(x=reorder(Method, -FDR), y=FDR)) +
     geom_bar(stat='identity') +
-    geom_hline(yintercept=0.1, lty=2, col='red') +
+    #geom_hline(yintercept=0.1, lty=2, col='red') +
     theme_clean() +
-    labs(x="DA Method", y="FDR")
+    labs(x="DA Method", y="Cell-wise FDR")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_FDR.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
 ```
 
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
 ggplot(da.fdr.df, aes(x=reorder(Method, -TPR), y=TPR)) +
     geom_bar(stat='identity') +
     theme_clean() +
     labs(x="DA Method", y="Recall")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_Recall.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
 ```
 
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
 ggplot(da.fdr.df, aes(x=reorder(Method, -MCC), y=MCC)) +
     geom_bar(stat='identity') +
     theme_clean() +
     labs(x="DA Method", y="MCC")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_MCC.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
 ```
+
+What does the power look like?
+
+```{r, warning=FALSE, fig.height=3.95, fig.width=4.25}
+ggplot(da.fdr.df, aes(x=reorder(Method, -Power), y=Power)) +
+    geom_bar(stat='identity') +
+    theme_clean() +
+    labs(x="DA Method", y="Power")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_Power.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
+```
+
 
 
 
