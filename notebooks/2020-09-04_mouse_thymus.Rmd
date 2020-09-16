@@ -34,6 +34,8 @@ library(tidyr)
 library(dplyr)
 library(ggbeeswarm)
 library(colorspace)
+library(ComplexHeatmap)
+library(circlize)
 ```
 
 
@@ -141,7 +143,7 @@ space as our single-cells to visualise where these DA neighbourhoods are.
 max.lfc <- max(abs(thymus.res$logFC))
 
 ggplot(thymus.res, aes(x=logFC, y=-log10(SpatialFDR), colour=as.character(Diff))) +
-    geom_hline(yintercept=-log10(0.1), lty=2, colour='grey50') +
+    geom_hline(yintercept=-log10(0.01), lty=2, colour='grey50') +
     geom_point(size=3) +
     scale_x_continuous(limits=c(-max.lfc-0.1, max.lfc+0.1)) +
     theme_cowplot() +
@@ -403,53 +405,62 @@ gene.df <- getBM(attributes = c("ensembl_gene_id", "external_gene_name", "chromo
 rownames(gene.df) <- gene.df$ensembl_gene_id
 ```
 
+```{r, warning=FALSE, message=FALSE}
+thymus.mylo <- calcNhoodExpression(thymus.mylo, assay="logcounts")
+```
 
 ```{r, warning=FALSE, message=FALSE}
+goi.genes <- c("Cd52", "Ccl21a", "Psmb11", "Ly6a", "Aire", "Cd40")
+goi.ensembl <- gene.df[gene.df$external_gene_name %in% goi.genes, ]$ensembl_gene_id
 sig.markers <- itec.markers[itec.markers$adj.P.Val <= 0.01, ]
-top.genes <- rownames(sig.markers[order(sig.markers$t, decreasing=TRUE), ])[1:20]
-bottom.genes <- rownames(sig.markers[order(sig.markers$t, decreasing=FALSE), ])[1:20]
-plot.genes <- c(top.genes, bottom.genes)
+top.genes <- rownames(sig.markers[order(sig.markers$logFC, decreasing=TRUE), ])[1:25]
+bottom.genes <- rownames(sig.markers[order(sig.markers$logFC, decreasing=FALSE), ])[1:25]
+plot.genes <- unique(c(top.genes, bottom.genes, goi.ensembl))
 gene.symbols <- gene.df[plot.genes, ]$external_gene_name
-itec.nhoods <- itec.res$Nhood
-pc.exprs <- sapply(plot.genes, FUN=function(G) .calculate_nhood_perc_expression(thymus.mylo, itec.nhoods, G))
-pc.exprs <- as.data.frame(pc.exprs)
-colnames(pc.exprs) <- gene.symbols
-pc.exprs$Nhood <- rownames(pc.exprs)
-pc.exprs.merge <- merge(pc.exprs, itec.res, by='Nhood')
-pc.exprs.merge$logFC_rank <- rank(pc.exprs.merge$logFC)
 ```
 
+I think I might be able to cluster the heatmap rows to make this more intuitive.
 
-```{r, fig.height=8.95, fig.width=7.95, message=FALSE, warning=FALSE}
-pl_top <- pc.exprs.merge %>%
-    mutate(is_signif = ifelse(SpatialFDR < 0.01, "SpatialFDR < 0.01", NA)) %>%
-    ggplot(aes(logFC_rank, logFC)) +
-    geom_hline(yintercept = 0, linetype=2) +
-    geom_point(size=1) +
-    geom_point(data=.%>% filter(!is.na(is_signif)), aes(color=is_signif), size=1.0) +
-    theme_bw() +
-    scale_color_manual(values="red", name="") +
-    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank(),
-          axis.text.y=element_text(size=11, colour='black'),
-          axis.title.y=element_text(size=12, colour='black')) +
-    guides(colour=guide_legend(override.aes=list(size=3)))
-     
-pl_bottom <- pc.exprs.merge %>%
-    pivot_longer(cols=gene.symbols, names_to='feature', values_to="perc_expressed") %>%
-    ggplot(aes(logFC_rank, reorder(feature, logFC_rank, mean), fill=perc_expressed)) + 
-    geom_tile() +
-    labs(x="logFC Rank", y="Gene") +
-    scale_fill_viridis_c(option="magma") +
-    ggbio::theme_clear() +
-    theme(axis.text=element_text(size=11, colour='black'),
-          axis.title=element_text(size=12, colour='black')) +
-    guides(fill=guide_colourbar(title="%Expressed"))
-  
-plot_grid(pl_top, pl_bottom, ncol=1, rel_heights = c(0.25,1))
+```{r, warning=FALSE, message=FALSE, fig.height=8.95, fig.width=7.95}
+hm.mat <- nhoodExpression(thymus.mylo)[plot.genes, ]
+rownames(hm.mat) <- gene.df[plot.genes, ]$external_gene_name
+colnames(hm.mat) <- c(1:ncol(hm.mat))
+nhood.order <- itec.res$Nhood[order(itec.res$logFC, decreasing=FALSE)]
+point.col <- rep("black", nrow(itec.res))
+point.col[itec.res$SpatialFDR <= 0.01] <- "red"
+point.col <- point.col[order(itec.res$logFC, decreasing=FALSE)]
 
-ggsave("~/Dropbox/Milo/figures/AgeingThymus_iTEC_DEgenes.pdf",
-       height=8.95, width=7.95, useDingbats=FALSE)
-```
+hm.cols <- viridis::viridis(n=12, option="magma")
+
+rank_annot <- HeatmapAnnotation(logFC=anno_points(itec.res[order(itec.res$logFC, decreasing=FALSE), ]$logFC,
+                                                  gp=gpar(col=point.col)),
+                                height=unit(2.5, "cm"))
+
+gene_annot <- rowAnnotation(Genes=anno_mark(at=which(rownames(hm.mat) %in% c("Cd40", "Ccl21a", "Cd52", "Aire", "Ly6a")),
+                                            labels=rownames(hm.mat)[rownames(hm.mat) %in% c("Cd40", "Ccl21a", "Cd52", "Aire", "Ly6a")]))
+
+pdf("~/Dropbox/Milo/figures/AgeingThymus_iTEC_DEgenes-ComplexHeatmap.pdf",
+    height=5.95, width=7.95, useDingbats=FALSE)
+Heatmap(hm.mat[, nhood.order], cluster_columns=FALSE, show_column_names=FALSE, top_annotation=rank_annot,
+        col=hm.cols, right_annotation=gene_annot, show_row_names = FALSE,
+        row_title="Genes", column_title="Neighbourhoods",
+        heatmap_legend_param = list(title="Expression"))
+dev.off()
+
+Heatmap(hm.mat[, nhood.order], cluster_columns=FALSE, show_column_names=FALSE, top_annotation=rank_annot,
+        col=hm.cols, right_annotation=gene_annot, show_row_names = FALSE,
+        row_title="Genes", column_title="Neighbourhoods",
+        heatmap_legend_param = list(title="Expression"))
+``` 
+
+
+
+
+
+
+
+
+
 
 
 

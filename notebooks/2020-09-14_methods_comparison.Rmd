@@ -6,7 +6,7 @@ output: html_notebook
 # Introduction
 
 A key test of `Milo` is how it compare to other other methods. For this we need a ground truth that is vaguely realistic. I will use the linear 
-trajectory simulation with 5000 cells where a single middle group of cells are differentially abundant between conditions.  The methods against which 
+trajectory simulation with 2000 cells where a single middle group of cells are differentially abundant between conditions.  The methods against which 
 I will make this comparison are:
 
 * Cluster-based: Louvain and Walktrap
@@ -381,7 +381,7 @@ ggsave("~/Dropbox/Milo/figures/MethodCompare_PPV.pdf",
 ```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
 ggplot(da.fdr.df, aes(x=reorder(Method, -FDR), y=FDR)) +
     geom_bar(stat='identity') +
-    #geom_hline(yintercept=0.1, lty=2, col='red') +
+    geom_hline(yintercept=0.1, lty=2, col='red') +
     theme_clean() +
     labs(x="DA Method", y="Cell-wise FDR")
 
