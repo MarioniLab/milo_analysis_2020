@@ -88,6 +88,14 @@ sim_milo <- Milo(sim_sce)
 sim_milo
 ```
 
+Visualize single cell dataset with UMAP
+```{r}
+sim_umap <- uwot::umap(reducedDim(sim_milo), n_neighbors = 20, metric = "cosine")
+reducedDim(sim_milo, "UMAP") <- sim_umap
+
+plotUMAP(sim_milo, colour_by="group_id")
+```
+
 ### Build KNN-graph
 
 ```{r}
@@ -99,14 +107,14 @@ sim_milo <- buildGraph(sim_milo, k = 20, d = 30)
 Using sampling of 10% random points 
 
 ```{r}
-sim_milo <- makeNeighbourhoods(sim_milo, prop = 0.1, k=20, d=30, refined = FALSE)
-plotNeighborhoodSizeHist(sim_milo)
+sim_milo <- makeNhoods(sim_milo, prop = 0.1, k=20, d=30, refined = FALSE)
+plotNhoodSizeHist(sim_milo)
 ```
 
 ### Count cells within neighbourhoods
 ```{r}
-sim_milo <- countCells(sim_milo, data = data.frame(colData(sim_milo)), samples = "sample")
-head(neighbourhoodCounts(sim_milo))
+sim_milo <- countCells(sim_milo, meta.data = data.frame(colData(sim_milo)),samples = "sample")
+head(nhoodCounts(sim_milo))
 ```
 
 ### Test for DA
@@ -115,10 +123,10 @@ head(neighbourhoodCounts(sim_milo))
 ## Build design matrix
 design_df <- data.frame(colData(sim_milo)) %>%
   rownames_to_column() %>%
-  select(sample, condition) %>%
+  dplyr::select(sample, condition) %>%
   distinct() 
 
-milo_results <- testNeighbourhoods(sim_milo, ~ 1 + condition, data = design_df,
+milo_results <- testNhoods(sim_milo, ~ 1 + condition, design.df = design_df,
                                fdr.weighting = "k-distance")
 
 head(milo_results)
@@ -133,8 +141,8 @@ milo_results %>%
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=TRUE}
-nhIndex <- unlist(neighbourhoodIndex(sim_milo))
-nhSize <- sapply(neighbourhoods(sim_milo), length)
+nhIndex <- unlist(nhoodIndex(sim_milo))
+nhSize <- sapply(nhoods(sim_milo), length)
 milo_results <- mutate(milo_results, 
                        nhIndex=nhIndex, nhSize=nhSize)
 
@@ -150,40 +158,49 @@ df %>%
   scale_color_viridis_c()
 ```
 
-Visualize results in embedding
+Visualize results in neighbourhood graph
 
 ```{r}
-## Compute UMAP for all cells 
-sim_umap <- uwot::umap(reducedDim(sim_milo), n_neighbors = 20, metric = "cosine")
-reducedDim(sim_milo, "UMAP") <- sim_umap
-
-## Take median of neighbourhoods
-nhMed <- t(sapply(neighbourhoods(sim_milo), function(x) colMedians(reducedDim(sim_milo)[x,])))
-umap_nhMed <- uwot::umap(neighbourhoodsMed, n_neighbors=20, metric='cosine',
-           init=reducedDim(sim_milo[,unlist(neighbourhoodIndex(sim_milo))], "UMAP"), min_dist=0.1)
-colnames(umap_nhMed) <- c("UMAP_1", "UMAP_2")
-
-milo_results_viz <- cbind(milo_results, umap_nhMed) 
-milo_results_viz %>%
-  arrange(abs(logFC)) %>%
-  mutate(logFC = ifelse(SpatialFDR > filter_alpha, NA, logFC)) %>%
-  ggplot(aes(UMAP_1, UMAP_2)) +
-  geom_point(aes(color=logFC)) +
-  scale_color_gradient2(midpoint = 0, high="red", low="blue", name="log-FC") +
-  theme_classic(base_size = 16) +
-  theme(axis.ticks =element_blank(), axis.text = element_blank(), plot.title = element_text(hjust=0.5))
+sim_milo <- buildNhoodGraph(sim_milo)
+plotNhoodGraph(sim_milo, colour_by = "group_id")
+```
+```{r, fig.width=10, fig.height=10}
+plotNhoodGraphDA(sim_milo, milo_res = milo_results)
 ```
 
-```{r}
-plotMiloReducedDim(sim_milo, milo_results, reduced_dim = "UMAP", components = c(1,2), filter_alpha = 0.1)
-```
+
+<!-- # ```{r} -->
+<!-- # ## Compute UMAP for all cells -->
+<!-- # sim_umap <- uwot::umap(reducedDim(sim_milo), n_neighbors = 20, metric = "cosine") -->
+<!-- # reducedDim(sim_milo, "UMAP") <- sim_umap -->
+
+<!-- ## Take median of neighbourhoods -->
+<!-- nhMed <- t(sapply(neighbourhoods(sim_milo), function(x) colMedians(reducedDim(sim_milo)[x,]))) -->
+<!-- umap_nhMed <- uwot::umap(neighbourhoodsMed, n_neighbors=20, metric='cosine', -->
+<!--            init=reducedDim(sim_milo[,unlist(neighbourhoodIndex(sim_milo))], "UMAP"), min_dist=0.1) -->
+<!-- colnames(umap_nhMed) <- c("UMAP_1", "UMAP_2") -->
+
+<!-- milo_results_viz <- cbind(milo_results, umap_nhMed)  -->
+<!-- milo_results_viz %>% -->
+<!--   arrange(abs(logFC)) %>% -->
+<!--   mutate(logFC = ifelse(SpatialFDR > filter_alpha, NA, logFC)) %>% -->
+<!--   ggplot(aes(UMAP_1, UMAP_2)) + -->
+<!--   geom_point(aes(color=logFC)) + -->
+<!--   scale_color_gradient2(midpoint = 0, high="red", low="blue", name="log-FC") + -->
+<!--   theme_classic(base_size = 16) + -->
+<!--   theme(axis.ticks =element_blank(), axis.text = element_blank(), plot.title = element_text(hjust=0.5)) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- plotMiloReducedDim(sim_milo, milo_results, reduced_dim = "UMAP", components = c(1,2), filter_alpha = 0.1) -->
+<!-- ``` -->
 
 ## Refined sampling scheme
 
 We adopt the refined sampling strategy applied in [Wishbone](https://www.nature.com/articles/nbt.3569#Sec12), and adapted from [here](https://www.nature.com/articles/nmeth.3545). Briefly, to avoid selecting outliers with random sampling, I first randomly select $n$ cells. For each sampled cell I then identify its k neares neighbors and compute the median profile of the neighbors (in this case the profile in reduced PC space). Then I replace each sampled cell by the cell closest to the median profile of its neighbors. 
 
 ```{r}
-sim_milo_ref <- makeNeighbourhoods(sim_milo,prop = 0.1, k=20, d=30, refined = TRUE)
+sim_milo_ref <- makeNhoods(sim_milo,prop = 0.1, k=20, d=30, refined = TRUE)
 ```
 
 ### Refined sampling stats
@@ -192,8 +209,8 @@ With the refined sampling scheme I select cells with a larger neighbourhood on a
 
 ```{r, warning=FALSE, message=FALSE, echo=TRUE}
 bind_rows(
-  data.frame(neighborhood_size = unlist(lapply(neighbourhoods(sim_milo), length)), sampling="random"),
-  data.frame(neighborhood_size = unlist(lapply(neighbourhoods(sim_milo_ref), length)), sampling="refined")
+  data.frame(neighborhood_size = unlist(lapply(nhoods(sim_milo), length)), sampling="random"),
+  data.frame(neighborhood_size = unlist(lapply(nhoods(sim_milo_ref), length)), sampling="refined")
   ) %>%
   ggplot(aes(neighborhood_size, fill=sampling)) +
   geom_histogram(bins=30) +
@@ -208,8 +225,8 @@ random_n <- c()
 refined_n <- c()
 for (x in seq(0.01,0.5, by = 0.05)) {
   for (i in 1:3){
-    random_nh  <- neighbourhoods(makeNeighbourhoods(sim_milo, prop=x, k=20, d=30, refined = FALSE, seed=42 + i))
-    refined_nh <- neighbourhoods(makeNeighbourhoods(sim_milo, prop=x, k=20, d=30, refined = TRUE, seed=42 + i))
+    random_nh  <- nhoods(makeNhoods(sim_milo, prop=x, k=20, d=30, refined = FALSE, seed=42 + i))
+    refined_nh <- nhoods(makeNhoods(sim_milo, prop=x, k=20, d=30, refined = TRUE, seed=42 + i))
     l_ran <- length(random_nh)
     l_ref <- length(refined_nh)
     random_n <- c(random_n, l_ran)
@@ -227,18 +244,26 @@ data.frame(sample_proportion=lapply(seq(0.01,0.5, by = 0.05), function(x) rep(x,
 ### Compare DA testing results
 
 ```{r}
-sim_milo_ref <- countCells(sim_milo_ref, data = data.frame(colData(sim_milo_ref)), samples = "sample")
+sim_milo_ref <- countCells(sim_milo_ref, meta.data = data.frame(colData(sim_milo_ref)), samples = "sample")
 
-res_rand <- testNeighbourhoods(sim_milo, ~ 1 + condition, data = design_df, fdr.weighting = "k-distance")
-res_ref <- testNeighbourhoods(sim_milo_ref, ~ 1 + condition, data = design_df, fdr.weighting = "k-distance")
+res_rand <- testNhoods(sim_milo, ~ 1 + condition, design.df = design_df, fdr.weighting = "k-distance")
+res_ref <- testNhoods(sim_milo_ref, ~ 1 + condition, design.df = design_df, fdr.weighting = "k-distance")
 ```
 
 Refined sampling seems to be able to identify DA at both ends of the spectrum better
 
-```{r, message=FALSE, warning=FALSE}
-plotMiloReducedDim(sim_milo, res_rand, pt_size=2) + ggtitle("Random sampling") 
-plotMiloReducedDim(sim_milo_ref, res_ref, pt_size=2) + ggtitle("Refined sampling")
+```{r}
+sim_milo_ref <- buildNhoodGraph(sim_milo_ref) 
+
+plotNhoodGraphDA(sim_milo, milo_res = res_rand)
+plotNhoodGraphDA(sim_milo_ref, milo_res = res_ref)
 ```
+
+
+<!-- ```{r, message=FALSE, warning=FALSE} -->
+<!-- plotMiloReducedDim(sim_milo, res_rand, pt_size=2) + ggtitle("Random sampling")  -->
+<!-- plotMiloReducedDim(sim_milo_ref, res_ref, pt_size=2) + ggtitle("Refined sampling") -->
+<!-- ``` -->
 
 <!-- ```{r, message=FALSE, warning=FALSE, fig.width=10, fig.height=5} -->
 <!-- dyn.df %>% -->
@@ -349,9 +374,100 @@ test_mean_nh_size(milo, prop = 0.2, grid_df[1,"k"], grid_df[1,"n_cells"], d=5)
 ```
 
 
+## Robustness of sampling
+
+Do I always end up with the same neighbourhoods with refined sampling?
+```{r}
+test_robusteness <- function(sim_milo, prop, seeds = 2000+seq(1,5), k=20){
+  indexes <- sapply(seeds, function(s) unlist(nhoodIndex(makeNhoods(sim_milo, prop=prop, k = k, refined = T, seed=s))))
+  names(indexes) <- seeds
+  intersect(indexes[[1]], indexes[[3]])
+  nms <- permutations(n = length(indexes), v = seeds, r = 2, repeats.allowed = T)
+  out <- sapply( 1:nrow(nms) , function(x) length( intersect( indexes[[as.character(nms[x,1])]], indexes[[ as.character(nms[x,2]) ]]) ) )
+  intersect_mat <- matrix(out, nrow = length(indexes), byrow = TRUE)
+  intersect_mat_frac <- sapply(1:nrow(intersect_mat), function(x) intersect_mat[x,]/intersect_mat[x,x]) 
+  diag(intersect_mat_frac) <- NA
+  mean_frac <- mean(intersect_mat_frac, na.rm=TRUE)
+  sd_frac <- sd(intersect_mat_frac, na.rm=TRUE)
+  return(list(mean=mean_frac, sd=sd_frac))
+}
+
+
+rob_k20 <- sapply(seq(0.1, 0.7, by=0.1), function(x) test_robusteness(sim_milo, prop=x))
+rob_k30 <- sapply(seq(0.1, 0.4, by=0.1), function(x) test_robusteness(sim_milo, prop=x, k=30))
+
+data.frame(t(rob_k20))  %>%
+  unnest() %>%
+  mutate(prop=seq(0.1, 0.7, by=0.1)) %>%
+  ggplot(aes(prop, mean)) +
+  geom_point() +
+  geom_linerange(aes(ymin=mean-sd, ymax=mean+sd)) +
+  ylim(0,1) +
+  xlab("Proportion for initial sampling") +
+  ylab("Mean proportion of common nhoods") +
+  ggtitle("Sampling 5 times, k=20")
+
+data.frame(t(rob_k30))  %>%
+  unnest() %>%
+  mutate(prop=seq(0.1, 0.4, by=0.1)) %>%
+  ggplot(aes(prop, mean)) +
+  geom_point() +
+  geom_linerange(aes(ymin=mean-sd, ymax=mean+sd)) +
+  ylim(0,1) + xlim(0.1,0.7) +
+  xlab("Proportion for initial sampling") +
+  ylab("Mean proportion of common nhoods") +
+  ggtitle("Sampling 5 times, k=30")
+```
+
+How distant are uncommon cells sampled with low proportions?
+
+```{r}
+
+calc_uncommon_dist <- function(indexes1, indexes2){
+  common_nh <- intersect(indexes1, indexes2)
+  uncommon_nh1 <- setdiff(indexes1, indexes2)
+  uncommon_nh2 <- setdiff(indexes2, indexes1)
+  nn_dist_sampled <- as.matrix(sim_milo@nhoodDistances[uncommon_nh1,uncommon_nh2]) %>%
+    {ifelse(.==0, NA, .)} %>%
+    apply(., 1, function(x) min(x, na.rm=TRUE)) 
+  df <- data.frame(distance=nn_dist_sampled, class="Closest sampled cell") 
+  return(df)
+  }
+
+# test_robusteness <- function(sim_milo, prop, seeds = 2000+seq(1,5), k=20){
+seeds = 2000+seq(1,5)
+indexes <- sapply(seeds, function(s) unlist(nhoodIndex(makeNhoods(sim_milo, prop=0.1, k = 20, refined = T, seed=s))))
+names(indexes) <- seeds
+
+nms <- t(combn(x = seeds, m=2, simplify = TRUE))
+nms <- nms[nms[,1]!=nms[,2],]
+big_df <- lapply(1:nrow(nms), function(i) calc_uncommon_dist(indexes[as.character(nms[i,1])][[1]], indexes[as.character(nms[i,2])][[1]])) %>%
+  imap(~ .x %>% mutate(sample_pair=.y)) %>%
+  purrr::reduce(bind_rows)
+
+all_nn_dist <- as.matrix(sim_milo@nhoodDistances) %>%
+  {ifelse(.==0, NA, .)} %>%
+  {.[!is.na(.)]}
+
+first_nn_dist <- as.matrix(sim_milo@nhoodDistances) %>%
+  {ifelse(.==0, NA, .)} %>%
+  apply(., 1, function(x) min(x, na.rm=TRUE))
+
+bind_rows(
+  data.frame(distance=all_nn_dist, class="All NNs", sample_pair = max(big_df$sample_pair)+1),
+  data.frame(distance=first_nn_dist, class="First NN", sample_pair = max(big_df$sample_pair)+2),
+  big_df
+) %>%
+  ggplot(aes(distance, color=class, group=sample_pair)) + 
+  geom_density(size=1.5) +
+  scale_color_brewer(palette="Set1", name="") 
+
+```
+
+
 ---
 
-## Old code
+# Old code
 
 ## Robustness of test outcomes
 
