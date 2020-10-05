@@ -40,8 +40,8 @@ I'll use the simple linear trajectory data set for this with ~2000 cells and gen
 
 ```{r, warning=FALSE, message=FALSE}
 n.dim <- 15
-k <- 30
-sim.data <- readRDS("~/Dropbox/Milo/simulations/data/Trajectory_Ncells2000_M3DA_simpleSim.RDS")
+k <- 10
+sim.data <- readRDS("~/Dropbox/Milo/simulations/data/Trajectory_Ncells2000_3M1DARep100_simpleSim.RDS")
 sim.mylo <- sim.data$mylo
 sim.meta <- sim.data$meta
 sim.mylo <- buildGraph(sim.mylo, k=k, d=n.dim, seed=42)
@@ -61,17 +61,36 @@ sim.fr.df <- merge(sim.fr.df, sim.meta, by='cell_id')
 rownames(sim.fr.df) <- sim.fr.df$cell_id
 
 ggplot(sim.fr.df, aes(x=V1, y=V2)) +
-    geom_point(aes(colour=group_id)) +
-    scale_colour_npg() +
+    geom_point(aes(fill=Condition), size=3, shape=21) +
+    scale_fill_manual(values=c("#662483", "white")) +
     theme_cowplot() +
     theme(axis.line=element_blank(), axis.ticks=element_blank(),
           axis.text=element_blank(), axis.title=element_blank()) +
-    guides(colour=guide_legend("Ground.Truth")) +
-    facet_wrap(~Condition, nrow=1)
+    #facet_wrap(~Condition) +
+    guides(fill=guide_legend(title="Condition", override.aes=list(size=3)),
+           colour=FALSE, shape=FALSE, size=FALSE, alpha=FALSE) +
+    #facet_wrap(~Condition, nrow=1) +
+    NULL
 
 ggsave("~/Dropbox/Milo/figures/MethodCompare_GroundTruth.png",
        height=4.15, width=8.25, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_GroundTruth.pdf",
+       height=4.15, width=8.25, useDingbats=FALSE)
 ```
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.15, fig.width=3.15}
+ggplot(sim.fr.df, aes(x=group_id, fill=Condition)) +
+    geom_bar(position='dodge', colour='black') +
+    scale_fill_manual(values=c("#662483", "white")) +
+    theme_cowplot() +
+    labs(x="Cell Group", y="#Cells") +
+    NULL
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_simulation_bar.pdf",
+       height=2.15, width=3.15, useDingbats=FALSE)
+```
+
 
 
 # Milo
@@ -84,7 +103,7 @@ test.meta <- data.frame("Condition"=c(rep("A", 3), rep("B", 3)),
 test.meta$Sample <- paste(test.meta$Condition, test.meta$Replicate, sep="_")
 rownames(test.meta) <- test.meta$Sample
 
-sim.mylo <- makeNhoods(sim.mylo, k=k, d=n.dim, prop=0.75, refined=TRUE)
+sim.mylo <- makeNhoods(sim.mylo, k=k, d=n.dim, prop=0.3, refined=TRUE)
 sim.mylo <- miloR::countCells(sim.mylo, samples="Sample", meta.data=as.data.frame(sim.meta))
 mylo.res <- testNhoods(sim.mylo, design=~Condition, design.df=test.meta[colnames(nhoodCounts(sim.mylo)), ])
 mylo.res$Diff <- sign(mylo.res$logFC)
@@ -159,7 +178,7 @@ for the method?
 
 ```{r, warning=FALSE}
 # k.vec <- c(5, 7, 10, 12, 15, 20, 25, 30, 35, 40, 45, 50)
-k.vec <- c(50, 500, 50)
+k.vec <- c(5, 500, 50)
 sim.daseq <- getDAcells(X=reducedDim(sim.mylo)[, 1:n.dim],
                         cell.labels=sim.meta$cell_id,
                         labels.1=sim.meta$cell_id[sim.meta$Condition %in% c("A")],
@@ -196,7 +215,7 @@ sim.da_regions <- getDAregion(X=reducedDim(sim.mylo)[, 1:n.dim],
                               labels.1=sim.meta$cell_id[sim.meta$Condition %in% c("A")],
                               labels.2=sim.meta$cell_id[sim.meta$Condition %in% c("B")],
                               size=1,
-                              resolution=0.01, plot.embedding=as.matrix(sim.fr.df[, c("V1", "V2")]))
+                              resolution=0.1, plot.embedding=as.matrix(sim.fr.df[, c("V1", "V2")]))
 
 str(sim.da_regions[1:2])
 ```
@@ -272,6 +291,9 @@ ggplot(da.cell.df, aes(x=reorder(Method, -NCells), y=NCells)) +
     geom_bar(stat='identity') +
     theme_clean() +
     labs(x="DA Method", y="#DA cells")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_NDAcells.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
 ```
 
 From this it does look like `Milo` will call some neighbourhoods that are DA because the ratio of cells in that neighbourhood departs from 50:50. I'm 
@@ -404,11 +426,13 @@ ggsave("~/Dropbox/Milo/figures/MethodCompare_Recall.pdf",
 ```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
 ggplot(da.fdr.df, aes(x=reorder(Method, -MCC), y=MCC)) +
     geom_bar(stat='identity') +
-    theme_clean() +
-    labs(x="DA Method", y="MCC")
+    theme_cowplot() +
+    theme(axis.text=element_text(size=20),
+          axis.title=element_text(size=22)) +
+    labs(x="Method", y="MCC")
 
 ggsave("~/Dropbox/Milo/figures/MethodCompare_MCC.pdf",
-       height=3.95, width=4.25, useDingbats=FALSE)
+       height=2.95, width=6.95, useDingbats=FALSE)
 ```
 
 What does the power look like?
@@ -423,9 +447,86 @@ ggsave("~/Dropbox/Milo/figures/MethodCompare_Power.pdf",
        height=3.95, width=4.25, useDingbats=FALSE)
 ```
 
+Let's visualise these in a single table/matrix. I have to split this into the measures where higher is better and 
+lower is better.
 
+```{r, warning=FALSE, message=FALSE}
+# calculate the rank along each column
+da.negrank.df <- as.data.frame(apply(da.fdr.df[, c("Power", "F1", "TNR", "TPR", "NPV", "PPV")],
+                                     2, FUN=function(X) rank(-X)))
+da.negrank.df$Method <- da.fdr.df$Method
+da.negrank.melt <- melt(da.negrank.df, id.vars=c("Method"))
+da.negrank.melt$value <- ordered(da.negrank.melt$value,
+                                 levels=c(1:5))
 
+rank.cols <- colorRampPalette(pal_futurama()(3))(5)
+names(rank.cols) <- c(1:5)
 
+ggplot(da.negrank.melt, 
+       aes(x=Method, y=variable, fill=value)) +
+    geom_tile() +
+    theme_cowplot() +
+    scale_fill_manual(values=rank.cols) +
+    labs(x="Method", y="Measure") +
+     theme(axis.text=element_text(size=18),
+          axis.title=element_text(size=22),
+          legend.text=element_text(size=18),
+          legend.title=element_text(size=20)) +
+    guides(fill=guide_legend(title="Rank"))
 
+ggsave("~/Dropbox/Milo/figures/MethodCompare_PosRank_table.pdf",
+       height=3.95, width=6.25, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+# calculate the rank along each column
+da.posrank.df <- as.data.frame(apply(da.fdr.df[, c("FDR", "FPR", "FNR", "FOR")],
+                                     2, FUN=function(X) rank(X)))
+da.posrank.df$Method <- da.fdr.df$Method
+da.posrank.melt <- melt(da.posrank.df, id.vars=c("Method"))
+da.posrank.melt$value <- ordered(da.posrank.melt$value,
+                                 levels=c(1:5))
+
+rank.cols <- colorRampPalette(pal_futurama()(3))(5)
+names(rank.cols) <- c(1:5)
+
+ggplot(da.posrank.melt, 
+       aes(x=Method, y=variable, fill=value)) +
+    geom_tile() +
+    theme_cowplot() +
+    scale_fill_manual(values=rank.cols) +
+    labs(x="Method", y="Measure") +
+    theme(axis.text=element_text(size=18),
+          axis.title=element_text(size=22),
+          legend.text=element_text(size=18),
+          legend.title=element_text(size=20)) +
+    guides(fill=guide_legend(title="Rank"))
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_NegRank_table.pdf",
+       height=3.95, width=6.25, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+# calculate the rank along each column
+allrank.melt <- do.call(rbind.data.frame, list("post"=da.posrank.melt, "neg"=da.negrank.melt))
+
+rank.cols <- colorRampPalette(pal_futurama()(3))(5)
+names(rank.cols) <- c(1:5)
+
+ggplot(allrank.melt, 
+       aes(x=Method, y=variable, fill=value)) +
+    geom_tile() +
+    theme_cowplot() +
+    scale_fill_manual(values=rank.cols) +
+    labs(x="Method", y="Measure") +
+     theme(axis.text=element_text(size=18),
+          axis.title=element_text(size=22),
+          legend.text=element_text(size=18),
+          legend.title=element_text(size=20)) +
+    guides(fill=guide_legend(title="Rank"))
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_AllRank_table.pdf",
+       height=4.15, width=6.95, useDingbats=FALSE)
+```
 
 

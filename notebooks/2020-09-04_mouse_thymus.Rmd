@@ -12,7 +12,6 @@ contained just 2000 cells. I will use `Milo` to identify the differential abunda
 states.
 
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
-### Set up a mock data set using simulated data
 library(ggplot2)
 library(igraph)
 library(ggthemes)
@@ -145,6 +144,8 @@ max.lfc <- max(abs(thymus.res$logFC))
 ggplot(thymus.res, aes(x=logFC, y=-log10(SpatialFDR), colour=as.character(Diff))) +
     geom_hline(yintercept=-log10(0.01), lty=2, colour='grey50') +
     geom_point(size=3) +
+    annotate("text", x=-0.175, y=2.5, label="Lower in older", size=4) +
+    annotate("text", x=0.175, y=2.5, label="Higher in older", size=4) +
     scale_x_continuous(limits=c(-max.lfc-0.1, max.lfc+0.1)) +
     theme_cowplot() +
     scale_colour_manual(values=c("firebrick2", "grey80", "firebrick2")) +
@@ -181,6 +182,11 @@ add_nhood_coldata_to_res <- function(thymus.mylo, milo_res, coldata_col){
 
 thymus.res <- add_nhood_coldata_to_res(thymus.mylo, thymus.res, "Age")
 thymus.res <- add_nhood_coldata_to_res(thymus.mylo, thymus.res, "Cluster")
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+saveRDS(list("milo"=thymus.mylo, "DAres"=thymus.res),
+        "~/Dropbox/Milo/MouseThymus_milo-res.RDS")
 ```
 
 
@@ -300,7 +306,7 @@ itec.res <- thymus.res[thymus.res$Cluster %in% c("Intertypical TEC"), ]
 I'll require adjacent neighbourhoods to share at least one cell.
 
 ```{r, warning=FALSE, message=FALSE}
-.group_nhoods_by_overlap <- function(nhs){
+.group_nhoods_by_overlap <- function(nhs, da.res){
   ll_names <- expand.grid(names(nhs), names(nhs)) 
   
   lintersect <- sapply(1:nrow(ll_names), function(x) length(intersect(nhs[[ll_names[x,1]]], nhs[[ll_names[x,2]]]))) 
@@ -308,10 +314,14 @@ I'll require adjacent neighbourhoods to share at least one cell.
   n=5
   lintersect_filt <- ifelse(lintersect < n, 0, lintersect)
   
+  ## check for concordant signs - assume order is the same as nhoods
+  concord.sign <- sapply(1:nrow(ll_names), function(x) sign(da.res[ll_names[x, 1], ]$logFC) != sign(da.res[ll_names[x, 2], ]$logFC))
+  lintersect_filt <- ifelse(concord.sign, 0, lintersect_filt)
+  
   ## Convert to adjacency matrix (values = no of common cells)
   d <- matrix(lintersect_filt, nrow = length(nhs), byrow = TRUE)
   
-  g <- graph_from_adjacency_matrix(d)
+  g <- graph_from_adjacency_matrix(d, mode="undirected", diag=FALSE)
   groups <- components(g)$membership
   return(groups)  
 }
@@ -320,7 +330,7 @@ I'll require adjacent neighbourhoods to share at least one cell.
   ls <- list()
   for (g in unique(gr)){
     nhs_ls <- lapply(nhs[which(gr==g)], function(x) as.vector(x))
-    cells <- purrr::reduce(nhs_ls, union)
+    cells <- unique(unlist(nhs_ls))
     ls[[g]] <- cells
   }
   return(ls)
@@ -335,12 +345,12 @@ neg_nhoods <- itec.res[itec.res$SpatialFDR <= 0.01 & itec.res$logFC < 0, ]$Nhood
 
 
 ```{r, warning=FALSE, message=FALSE}
-group_negs <- .group_nhoods_by_overlap(nhoods(itec.mylo)[neg_nhoods])
+group_negs <- .group_nhoods_by_overlap(nhoods(itec.mylo)[neg_nhoods], itec.res[neg_nhoods, ])
 cells_neg <- rownames(colData(itec.mylo))[unlist(.cells_in_nhood_groups(nhoods(itec.mylo)[neg_nhoods], group_negs))]
 cells_neg <- cells_neg[!is.na(cells_neg)]
 neg.df <- data.frame("CellID"=cells_neg, "nhood_group"=rep(paste0("negLogFC_", unique(group_negs)), length(unlist(cells_neg))))
 
-group_pos <- .group_nhoods_by_overlap(nhoods(itec.mylo)[pos_nhoods])
+group_pos <- .group_nhoods_by_overlap(nhoods(itec.mylo)[pos_nhoods], itec.res[pos_nhoods, ])
 cells_pos <- rownames(colData(itec.mylo))[unlist(.cells_in_nhood_groups(nhoods(itec.mylo)[pos_nhoods], group_pos))]
 cells_pos <- cells_pos[!is.na(cells_pos)]
 pos.df <- data.frame("CellID"=cells_pos, "nhood_group"=rep(paste0("posLogFC_", unique(group_pos)), length(unlist(cells_pos))))
@@ -436,8 +446,10 @@ rank_annot <- HeatmapAnnotation(logFC=anno_points(itec.res[order(itec.res$logFC,
                                                   gp=gpar(col=point.col)),
                                 height=unit(2.5, "cm"))
 
-gene_annot <- rowAnnotation(Genes=anno_mark(at=which(rownames(hm.mat) %in% c("Cd40", "Ccl21a", "Cd52", "Aire", "Ly6a")),
-                                            labels=rownames(hm.mat)[rownames(hm.mat) %in% c("Cd40", "Ccl21a", "Cd52", "Aire", "Ly6a")]))
+gene_annot <- rowAnnotation(Genes=anno_mark(at=which(rownames(hm.mat) %in% c("Cd40", "Ccl21a", "Cd52", "Aire", "Ly6a", "Il17re", "Vim",
+                                                                             "Mmp9", "Tgfbi", "Ascl1", "Hes6")),
+                                            labels=rownames(hm.mat)[rownames(hm.mat) %in% c("Cd40", "Ccl21a", "Cd52", "Aire", "Ly6a", 
+                                                                                            "Il17re", "Vim", "Mmp9", "Tgfbi", "Ascl1", "Hes6")]))
 
 pdf("~/Dropbox/Milo/figures/AgeingThymus_iTEC_DEgenes-ComplexHeatmap.pdf",
     height=5.95, width=7.95, useDingbats=FALSE)
@@ -452,21 +464,6 @@ Heatmap(hm.mat[, nhood.order], cluster_columns=FALSE, show_column_names=FALSE, t
         row_title="Genes", column_title="Neighbourhoods",
         heatmap_legend_param = list(title="Expression"))
 ``` 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
