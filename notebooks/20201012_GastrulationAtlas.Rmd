@@ -61,7 +61,7 @@ scater::plotReducedDim(embryo_milo_mnn, dimred = "umap", colour_by = "stage")
 ```
 ```{r}
 data.frame(colData(embryo_milo_mnn)) %>%
-  ggplot(aes(sample, sequencing.batch)) + geom_jitter()
+  ggplot(aes(pool, sequencing.batch)) + geom_jitter()
 ```
 
 ```{r, fig.height=14, fig.width=14}
@@ -161,7 +161,8 @@ bind_rows(mutate(da_mnn_stage, design="stage"),
   geom_hline(yintercept = -log10(0.01)) +
   geom_vline(xintercept = -log10(0.01)) +
   geom_abline() +
-  ggtitle("corrected")
+  coord_fixed() +
+  ggtitle("MNN corrected")
 
 bind_rows(mutate(da_uncor_stage, design="stage"),
           mutate(da_uncor_stage_batch, design="stage_batch")) %>%
@@ -172,6 +173,7 @@ bind_rows(mutate(da_uncor_stage, design="stage"),
   geom_hline(yintercept = -log10(0.01)) +
   geom_vline(xintercept = -log10(0.01)) +
   geom_abline() +
+  coord_fixed() +
   ggtitle("uncorrected")
 ```
 ```{r}
@@ -232,6 +234,11 @@ bind_rows(mutate(da_mnn_stage, design="stage", correction="MNN",
   facet_wrap(class~., scales="free_x")
 ```
 
+Save objects 
+```{r}
+saveRDS(embryo_milo_mnn, "~/EmbryoAtlas_MNN_milo.RDS")
+saveRDS(embryo_milo_uncor, "~/EmbryoAtlas_uncorrected_milo.RDS")
+```
 
 
 Visualize DA neighbourhoods
