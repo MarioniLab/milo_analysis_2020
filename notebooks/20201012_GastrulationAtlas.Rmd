@@ -9,7 +9,7 @@ library(miloR)
 library(SingleCellExperiment)
 library(tidyverse)
 
-BiocManager::install("MouseGastrulationData")
+# BiocManager::install("MouseGastrulationData")
 library(MouseGastrulationData)
 ```
 
@@ -20,7 +20,7 @@ embryo_sce <- EmbryoAtlasData(type="processed")
 ```
 
 ```{r}
-embryo_sce
+embryo_milo_mnn
 ```
 
 ## Preprocessing
@@ -50,18 +50,68 @@ embryo_milo_uncor <- Milo(embryo_sce)
 ## Build KNNs
 embryo_milo_mnn <- buildGraph(embryo_milo_mnn, k = 30, d=30, seed=42)
 embryo_milo_uncor <- buildGraph(embryo_milo_uncor, k = 30, d=30, seed=42)
+
+embryo_milo_uncor <- scater::runUMAP(embryo_milo_uncor, pca=30, dimred="PCA")
 ```
 
 ```{r, fig.height=10, fig.width=10}
-embryo_milo_uncor <- scater::runUMAP(embryo_milo_uncor, pca=30, dimred="PCA")
-
 scater::plotReducedDim(embryo_milo_uncor, dimred = "UMAP", colour_by = "stage") 
 scater::plotReducedDim(embryo_milo_mnn, dimred = "umap", colour_by = "stage") 
 
 ```
-```{r}
-data.frame(colData(embryo_milo_mnn)) %>%
-  ggplot(aes(pool, sequencing.batch)) + geom_jitter()
+```{r, fig.width=10, fig.height=10}
+stage_order <- c("E6.5", "E6.75", "E7.0", "E7.25",  "mixed_gastrulation", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5")
+
+make_umap_df <- function(embryo_milo_mnn, dimred){
+  umap_df <- data.frame(reducedDim(embryo_milo_mnn, dimred))
+  colnames(umap_df) <- c("UMAP1", "UMAP2")
+  
+  df <- cbind(umap_df, data.frame(colData(embryo_milo_mnn)[c("stage", "sequencing.batch")])) %>%
+    mutate(stage=factor(stage, levels = stage_order),
+           sequencing.batch = factor(sequencing.batch)) %>%
+    mutate(stage=as.numeric(stage))
+  df  
+}
+
+uncor_1 <- ggplot(make_umap_df(embryo_milo_uncor, "UMAP"), aes(UMAP1, UMAP2, color=stage)) +
+  geom_point(size=0.1, alpha=0.1) +
+  scale_color_viridis(option='magma', name="Time point") +
+  theme_classic(base_size = 14) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        legend.background = element_blank(),
+        legend.position = "top", plot.title=element_text(hjust=0.5)) 
+
+uncor_2 <-
+  ggplot(make_umap_df(embryo_milo_uncor, "UMAP"), aes(UMAP1, UMAP2, color=sequencing.batch)) +
+  geom_point(size=0.1, alpha=0.7) +
+  scale_color_brewer(palette="Set2", name="Seq. batch") +
+  guides(color=guide_legend(override.aes = list(size=2))) +
+  theme_classic(base_size = 14) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        legend.background = element_blank(),
+        legend.position = "top", plot.title=element_text(hjust=0.5)) 
+
+
+mnn_1 <- ggplot(make_umap_df(embryo_milo_mnn, "umap"), aes(UMAP1, UMAP2, color=stage)) +
+  geom_point(size=0.1, alpha=0.1) +
+  scale_color_viridis(option='magma', name="time_point") +
+  theme_classic(base_size = 14) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        legend.background = element_blank(),
+        legend.position = "top", plot.title=element_text(hjust=0.5)) 
+
+mnn_2 <-
+  ggplot(make_umap_df(embryo_milo_mnn, "umap"), aes(UMAP1, UMAP2, color=sequencing.batch)) +
+  geom_point(size=0.1, alpha=0.7) +
+  scale_color_brewer(palette="Set2", name="Seq. batch") +
+  guides(color=guide_legend(override.aes = list(size=2))) +
+  theme_classic(base_size = 14) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        legend.background = element_blank(),
+        legend.position = "top", plot.title=element_text(hjust=0.5)) 
+
+((uncor_2  + uncor_1) / ((mnn_2 + guides(color="none")) + (mnn_1 + guides(color="none")))) +
+  ggsave("~/milo_output/batch_effect_mouse_umaps.png", width = 7, height = 7)
 ```
 
 ```{r, fig.height=14, fig.width=14}
@@ -123,9 +173,11 @@ Try doing DA analysis with or without including the technical covariate in the d
 
 ```{r}
 da_mnn_stage <- testNhoods(embryo_milo_mnn, design = ~ stage_int, design.df = embryo_design)
+da_mnn_batch <- testNhoods(embryo_milo_mnn, design = ~ sequencing.batch, design.df = embryo_design)
 da_mnn_stage_batch <- testNhoods(embryo_milo_mnn, design = ~ sequencing.batch + stage_int, design.df = embryo_design)
 
 da_uncor_stage <- testNhoods(embryo_milo_uncor, design = ~ stage_int, design.df = embryo_design)
+da_uncor_batch <- testNhoods(embryo_milo_uncor, design = ~ sequencing.batch, design.df = embryo_design)
 da_uncor_stage_batch <- testNhoods(embryo_milo_uncor, design = ~ sequencing.batch + stage_int, design.df = embryo_design)
 ```
 
@@ -153,16 +205,41 @@ ggplot(da_uncor_stage_batch, aes(logFC, -log10(SpatialFDR))) +
 
 ```{r}
 bind_rows(mutate(da_mnn_stage, design="stage"),
-          mutate(da_mnn_stage_batch, design="stage_batch")) %>%
-  select(Nhood, design, SpatialFDR) %>%
-  pivot_wider(id_cols=c("Nhood"), names_from="design", values_from="SpatialFDR") %>%
-  ggplot(aes(-log10(stage), -log10(stage_batch))) +
-  geom_point(alpha=0.5, size=0.5) +
-  geom_hline(yintercept = -log10(0.01)) +
-  geom_vline(xintercept = -log10(0.01)) +
-  geom_abline() +
+          mutate(da_mnn_stage_batch, design="stage_batch"),
+          
+          ) %>%
+  dplyr::select(Nhood, design, SpatialFDR) %>%
+  mutate(predicted_outcome = ifelse(SpatialFDR < 0.1, 'is DA', "not DA")) %>%
+  pivot_wider(id_cols=c("Nhood"), names_from="design", values_from="predicted_outcome") %>%
+  group_by(stage, stage_batch) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(stage, stage_batch)) +
+  geom_tile(aes(fill=n)) +
+  geom_text(aes(label=n)) +
   coord_fixed() +
-  ggtitle("MNN corrected")
+  ylab("~ Seq. batch + Time point") +
+  xlab("~ Time point") +
+  scale_fill_gradient(low="grey98", high="red", name="# neighbourhoods") +
+  theme_classic(base_size = 15) 
+
+bind_rows(mutate(da_mnn_stage, design="stage"),
+          mutate(da_mnn_batch, design="batch"),
+          
+          ) %>%
+  dplyr::select(Nhood, design, SpatialFDR) %>%
+  mutate(predicted_outcome = ifelse(SpatialFDR < 0.1, 'is DA', "not DA")) %>%
+  pivot_wider(id_cols=c("Nhood"), names_from="design", values_from="predicted_outcome") %>%
+  group_by(stage, batch) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(stage, batch)) +
+  geom_tile(aes(fill=n)) +
+  geom_text(aes(label=n)) +
+  coord_fixed() +
+  ylab("~ Seq. batch") +
+  xlab("~ Time point") +
+  scale_fill_gradient(low="grey98", high="red", name="# neighbourhoods") +
+  theme_classic(base_size = 15) 
+  
 
 bind_rows(mutate(da_uncor_stage, design="stage"),
           mutate(da_uncor_stage_batch, design="stage_batch")) %>%
@@ -179,7 +256,7 @@ bind_rows(mutate(da_uncor_stage, design="stage"),
 ```{r}
 bind_rows(mutate(da_mnn_stage, design="stage"),
           mutate(da_mnn_stage_batch, design="stage_batch")) %>%
-  select(Nhood, design, logFC) %>%
+  dplyr::select(Nhood, design, logFC) %>%
   pivot_wider(id_cols=c("Nhood"), names_from="design", values_from="logFC") %>%
   ggplot(aes(stage, stage_batch)) +
   geom_point(alpha=0.5, size=0.5) +
@@ -189,7 +266,7 @@ bind_rows(mutate(da_mnn_stage, design="stage"),
 
 bind_rows(mutate(da_uncor_stage, design="stage"),
           mutate(da_uncor_stage_batch, design="stage_batch")) %>%
-  select(Nhood, design, logFC, SpatialFDR) %>%
+  dplyr::select(Nhood, design, logFC, SpatialFDR) %>%
   pivot_wider(id_cols=c("Nhood"), names_from="design", values_from=c("logFC", "SpatialFDR")) %>%
   mutate(color = case_when(SpatialFDR_stage_batch < 0.01 & SpatialFDR_stage < 0.01 ~ "signif_in_both",
                          SpatialFDR_stage_batch < 0.01 & SpatialFDR_stage > 0.01 ~ "signif_in_stage_batch",
@@ -202,15 +279,36 @@ bind_rows(mutate(da_uncor_stage, design="stage"),
   ggtitle("uncorrected")
 ```
 ```{r}
-bind_rows(mutate(da_mnn_stage, design="stage", correction="MNN"),
-          mutate(da_mnn_stage_batch, design="stage_batch", correction="MNN"),
-          mutate(da_uncor_stage, design="stage", correction="uncor"),
-          mutate(da_uncor_stage_batch, design="stage_batch", correction="uncor"),
+bind_rows(mutate(da_mnn_stage, design="~ Time point", correction="MNN corrected"),
+          mutate(da_mnn_stage_batch, design="~ Seq. batch + Time point", correction="MNN corrected"),
+          mutate(da_mnn_batch, design="~ Seq. batch", correction="MNN corrected"),
+          mutate(da_uncor_stage, design="~ Time point", correction="Uncorrected"),
+          mutate(da_uncor_stage_batch, design="~ Seq. batch + Time point", correction="Uncorrected"),
+          mutate(da_uncor_batch, design="~ Seq. batch",correction="Uncorrected"),
           ) %>%
+  mutate(design=factor(design, levels=rev(c("~ Seq. batch", "~ Time point", "~ Seq. batch + Time point")))) %>%
+  mutate(correction=factor(correction, levels=c('Uncorrected', "MNN corrected"))) %>%
   mutate(is_signif=SpatialFDR < 0.01) %>%
+  group_by(correction, design, is_signif) %>%
+  summarise(n=n()) %>%
+  group_by(correction, design) %>%
+  mutate(frac=n*100/sum(n)) %>%
+  ungroup() %>%
   mutate(class=paste(correction, design)) %>%
-    ggplot(aes(class, fill=is_signif)) +
-    geom_bar(position="fill")
+  ggplot(aes(design, frac)) +
+  geom_col(data=. %>% dplyr::filter(!is_signif), aes(y=100)) +
+  geom_col(data=. %>% dplyr::filter(is_signif),  aes(fill="is DA (FDR 10%)")) +
+  geom_text(data=. %>% dplyr::filter(is_signif),
+            aes(y=frac/2, label=n)
+              ) +
+  coord_flip() +
+  xlab("DA test design") +
+  ylab("% Neighbourhoods ") +
+  facet_grid(correction ~.) +
+  scale_fill_manual(values=brewer.pal(6,'Reds')[5], name="") +
+  theme_classic(base_size = 14) +
+  theme(legend.position="top") +
+  ggsave("~/milo_output/batch_effect_mouse_DA.pdf", height = 4, width = 6)
 ```
 
 ```{r}
@@ -238,6 +336,11 @@ Save objects
 ```{r}
 saveRDS(embryo_milo_mnn, "~/EmbryoAtlas_MNN_milo.RDS")
 saveRDS(embryo_milo_uncor, "~/EmbryoAtlas_uncorrected_milo.RDS")
+```
+
+```{r}
+embryo_milo_mnn <- readRDS("~/EmbryoAtlas_MNN_milo.RDS")
+embryo_milo_uncor <- readRDS("~/EmbryoAtlas_uncorrected_milo.RDS")
 ```
 
 
