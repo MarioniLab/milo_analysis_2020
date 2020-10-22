@@ -2,7 +2,8 @@
 title: "Supplementary methods"
 author: "Emma Dann, Michael D. Morgan"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: 
+output:
+  word_document: default
   pdf_document:
     keep_tex: yes
 bibliography: milo_bib.bib
