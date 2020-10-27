@@ -142,34 +142,42 @@ plotUMAP(sim_milo_be_mnn, colour_by="group_id", text_by="group_id")
 plotUMAP(sim_milo_be_mnn, colour_by="condition")
 ```
 Make good plots
-```{r, fig.height=12, fig.width=4}
+```{r, fig.height=8, fig.width=7}
 umap_mnn_df <- data.frame(reducedDim(sim_milo_be_mnn,"UMAP"))
 colnames(umap_mnn_df) <- c("UMAP1", "UMAP2") 
+umap_mnn_df[,"UMAP1"] <- jitter(umap_mnn_df[,"UMAP1"], factor=100)
+umap_mnn_df[,"UMAP2"] <- jitter(umap_mnn_df[,"UMAP2"], factor=100)
 umap_mnn_df <- cbind(umap_mnn_df, data.frame(colData(sim_milo_be_mnn)[c("technical_batch", "condition", "group_id")])) %>%
-  mutate(trueDA=ifelse(group_id %in% da_groups, "is DA", NA))
+  mutate(trueDA=ifelse(group_id %in% da_groups, "is DA", NA))  %>%
+  mutate(technical_batch=factor(technical_batch, levels=c("B2", "B1")))
 
 umap_uncor_df <- data.frame(reducedDim(sim_milo_be,"UMAP"))
 colnames(umap_uncor_df) <- c("UMAP1", "UMAP2") 
+umap_uncor_df[,"UMAP1"] <- jitter(umap_uncor_df[,"UMAP1"], factor=100)
+umap_uncor_df[,"UMAP2"] <- jitter(umap_uncor_df[,"UMAP2"], factor=100)
 umap_uncor_df <- cbind(umap_uncor_df, data.frame(colData(sim_milo_be)[c("technical_batch", "condition", "group_id")])) %>%
-  mutate(trueDA=ifelse(group_id %in% da_groups, "is DA", NA))
+  mutate(trueDA=ifelse(group_id %in% da_groups, "is DA", NA)) %>%
+  mutate(technical_batch=factor(technical_batch, levels=c("B2", "B1")))
 
 mnn_1 <- ggplot(umap_mnn_df, aes(UMAP1, UMAP2)) +
   geom_point(size=0.1, alpha=0.1) +
-  geom_point(data=.%>% dplyr::filter(!is.na(trueDA)), aes(color="is DA"), size=0.4) +
+  geom_point(data=.%>% dplyr::filter(!is.na(trueDA)), aes(color="is DA"), size=0.3) +
   # coord_fixed() +
   scale_color_manual(values="red", name="") +
-  theme_classic(base_size = 14) +
+  theme_classic(base_size = 20) +
+  guides(color=guide_legend(override.aes = list(size=2))) +
   theme(axis.text = element_blank(), axis.ticks = element_blank(),
         legend.background = element_blank(),
         legend.position = "top", plot.title=element_text(hjust=0.5)) +
   # ggtitle("MNN corrected")
   NULL
 
-mnn_2 <- ggplot(umap_mnn_df, aes(UMAP1, UMAP2, color=technical_batch)) +
-  geom_point(size=0.5, alpha=0.7) +
+mnn_2 <- ggplot(umap_mnn_df %>% arrange(UMAP1), aes(UMAP1, UMAP2, color=technical_batch)) +
+  geom_point(size=0.3, alpha=1) +
   # coord_fixed() +
   scale_color_brewer(palette="Set2", name="Batch") +
-  theme_classic(base_size = 14) +
+  theme_classic(base_size = 20) +
+  guides(color=guide_legend(override.aes = list(size=2))) +
   theme(axis.text = element_blank(), axis.ticks = element_blank(),
         legend.background = element_blank(),
         legend.position = "top", plot.title=element_text(hjust=0.5)) 
@@ -177,25 +185,30 @@ mnn_2 <- ggplot(umap_mnn_df, aes(UMAP1, UMAP2, color=technical_batch)) +
 
 uncor_1 <- ggplot(umap_uncor_df, aes(UMAP1, UMAP2)) +
   geom_point(size=0.1, alpha=0.1) +
-  geom_point(data=.%>% dplyr::filter(!is.na(trueDA)), aes(color="is DA"), size=0.4) +
+  geom_point(data=.%>% dplyr::filter(!is.na(trueDA)), aes(color="is DA"), size=0.3) +
   # coord_fixed() +
   scale_color_manual(values="red", name="") +
-  theme_classic(base_size = 14) +
+  theme_classic(base_size = 20) +
+  guides(color=guide_legend(override.aes = list(size=2))) +
   theme(axis.text = element_blank(), axis.ticks = element_blank(),
         legend.background = element_blank(),
         legend.position = "top", plot.title=element_text(hjust=0.5)) +
   # ggtitle("MNN corrected")
   NULL
 
-uncor_2 <- ggplot(umap_uncor_df, aes(UMAP1, UMAP2, color=technical_batch)) +
-  geom_point(size=0.5, alpha=0.7) +
+uncor_2 <- ggplot(umap_uncor_df %>% arrange(sample(nrow(umap_uncor_df))), aes(UMAP1, UMAP2, color=technical_batch)) +
+  geom_point(size=0.3, alpha=1) +
   # coord_fixed() +
   scale_color_brewer(palette="Set2", name="Batch") +
-  theme_classic(base_size = 14) +
+  theme_classic(base_size = 20) +
+  # facet_grid("Uncorrected"~., switch = 'y') +
+  guides(color=guide_legend(override.aes = list(size=2))) +
   theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        # strip.placement = "outside",
         legend.background = element_blank(),
-        legend.position = 'top', plot.title=element_text(hjust=0.5)) 
-  # ggtitle("Uncorrected")
+        legend.position = "top", plot.title=element_text(hjust=0.5)) 
+  # ggtitle("MNN corrected")
+
 
 pan_1 <- ((uncor_2  + uncor_1) / ((mnn_2 + guides(color="none")) + (mnn_1 + guides(color="none")))) 
 pan_1
@@ -263,37 +276,156 @@ ggplot(da_res_mnn_cond_tech, aes(logFC, -log10(SpatialFDR))) +
 
 ```
 
-```{r, fig.height=8, fig.width=8}
+
+```{r}
+myPlotNhoodGraph <- function(x, layout="UMAP", colour_by=NA, subset.nhoods=NULL, jitter=TRUE, ... ){
+  ## Check for valid nhoodGraph object
+  if(!.valid_graph(nhoodGraph(x))){
+    stop("Not a valid Milo object - neighbourhood graph is missing. Please run buildNhoodGraph() first.")
+  }
+  if (is.character(layout)) {
+    if (!layout %in% names(reducedDims(x))) {
+      stop(paste(layout, "isn't in readucedDim(x) - choose a different layout"))
+    }
+  }
+  nh_graph <- nhoodGraph(x)
+
+  ## Subset
+  if (!is.null(subset.nhoods)) {
+    nh_graph <- igraph::induced_subgraph(nh_graph, vids = which(as.numeric(V(nh_graph)$name) %in% unlist(nhoodIndex(x)[subset.nhoods])))
+  }
+
+
+  # ## Order vertex ids by size (so big nhoods are plotted first)
+  # nh_graph <- permute(nh_graph, order(vertex_attr(nh_graph)$size))
+
+  ## Define node color
+  if (!is.na(colour_by)) {
+    if (colour_by %in% colnames(colData(x))) {
+
+      col_vals <- colData(x)[as.numeric(vertex_attr(nh_graph)$name), colour_by]
+      if (!is.numeric(col_vals)) {
+        col_vals <- as.character(col_vals)
+        }
+      V(nh_graph)$colour_by <- col_vals
+    } else {
+      stop(paste(colour_by, "is not a column in colData(x)"))
+    }
+  } else {
+    V(nh_graph)$colour_by <- V(nh_graph)$size
+    colour_by <- "Nhood size"
+  }
+  # print(order(abs(vertex_attr(nh_graph)$colour_by)))
+  # before <- vertex_attr(nh_graph, "name")
+  
+  # after <- vertex_attr(nh_graph, "name")
+  # print(before==after)
+  
+  if (jitter){
+    set.seed(42)
+    reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),1] <- jitter(reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),1], factor=400)
+    reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),2] <- jitter(reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),2], factor=400)
+    # layout[,1] <- jitter(layout[,1], factor=400)
+    # layout[,2] <- jitter(layout[,2], factor=400)
+  }
+  
+  nh_graph <- igraph::permute(nh_graph, order(abs(vertex_attr(nh_graph)$colour_by), decreasing = FALSE))
+  
+  ## Define layout
+  if (is.character(layout)) {
+    redDim <- layout
+    layout <- reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),]
+    # make sure this is a matrix!
+    if(!any(class(layout) %in% c("matrix"))){
+        warning("Coercing layout to matrix format")
+        layout <- as(layout, "matrix")
+    }
+  }
+
+  
+  
+  pl <- ggraph(simplify(nh_graph), layout = layout) +
+    geom_edge_link0(aes(width = weight), edge_colour = "grey66", edge_alpha=0.2) +
+    geom_node_point(aes(fill = colour_by, size = size), color="grey20", shape=21) +
+    scale_size(range = c(0.5,2), name="Nhood size") +
+    scale_edge_width(range = c(0.2,3), name="overlap size") +
+    theme_classic(base_size=20) +
+    theme(axis.line = element_blank(), axis.text = element_blank(),
+          axis.ticks = element_blank(), axis.title = element_blank())
+    # theme_graph()
+
+  if (is.numeric(V(nh_graph)$colour_by)) {
+    pl <- pl + scale_fill_gradient2(name=colour_by)
+  } else {
+    pl <- pl + scale_fill_brewer(palette="Spectral", name=colour_by)
+  }
+
+  pl
+  }
+
+
+myPlotNhoodGraphDA <- function(x, milo_res, alpha=0.05, ... ){
+  if(!.valid_graph(nhoodGraph(x))){
+    stop("Not a valid Milo object - neighbourhood graph is missing. Please run buildNhoodGraph() first.")
+  }
+  if (is.character(layout)) {
+    if (!layout %in% names(reducedDims(x))) {
+      stop(paste(layout, "is not in readucedDim(x) - choose a different layout"))
+    }
+  }
+
+  ## Add milo results to colData
+  signif_res <- milo_res
+  signif_res[signif_res$SpatialFDR > alpha,"logFC"] <- 0
+  colData(x)["logFC"] <- 0
+  colData(x)[unlist(nhoodIndex(x)[signif_res$Nhood]),] <- signif_res$logFC
+
+  ## Plot logFC
+  myPlotNhoodGraph(x, colour_by = "logFC", ... )
+}
+myPlotNhoodGraphDA(sim_milo_be_mnn, da_res_mnn_cond_tech, alpha = 0.1)
+```
+
+
+```{r, fig.height=9, fig.width=9}
 sim_milo_be <- buildNhoodGraph(sim_milo_be)
 sim_milo_be_mnn <- buildNhoodGraph(sim_milo_be_mnn)
 
-nh1 <- plotNhoodGraphDA(sim_milo_be, da_res_be_cond, alpha = 0.1) +
-  scale_fill_gradient2(limits=c(-1, 4), name="log-Fold Change") +
-  scale_size(limits=c(10,130), name="Nhood size") +
+nh1 <- myPlotNhoodGraphDA(sim_milo_be, da_res_be_cond, alpha = 0.1) +
+  scale_fill_gradient2(limits=c(-2, 5), name="log-Fold Change") +
+  scale_size(limits=c(10,130), range = c(0.5,3), name="Nhood size") +
+  # coord_fixed() +
   scale_edge_width(range = c(0.2,3), limits=c(0,40), name="overlap size") 
-nh2 <- plotNhoodGraphDA(sim_milo_be, da_res_be_cond_tech, alpha = 0.1) +
-  scale_fill_gradient2(limits=c(-1, 4), name="log-Fold Change") +
-  scale_size(limits=c(10,130), name="Nhood size") +
+nh2 <- myPlotNhoodGraphDA(sim_milo_be, da_res_be_cond_tech, alpha = 0.1) +
+  scale_fill_gradient2(limits=c(-2, 5), name="log-Fold Change") +
+  # coord_fixed() +
+  scale_size(limits=c(10,130), range = c(0.5,3), name="Nhood size") +
   scale_edge_width(range = c(0.2,3), limits=c(0,40), name="overlap size") 
-nh3 <- plotNhoodGraphDA(sim_milo_be_mnn, da_res_mnn_cond, alpha = 0.1) +
-  scale_fill_gradient2(limits=c(-1, 4), name="log-Fold Change") +
-  scale_size(limits=c(10,130), name="Nhood size") +
+nh3 <- myPlotNhoodGraphDA(sim_milo_be_mnn, da_res_mnn_cond, alpha = 0.1) +
+  scale_fill_gradient2(limits=c(-2, 5), name="log-Fold Change") +
+  # coord_fixed() +
+  scale_size(limits=c(10,130), range = c(0.5,3), name="Nhood size") +
   scale_edge_width(range = c(0.2,3), limits=c(0,40), name="overlap size") 
-nh4 <- plotNhoodGraphDA(sim_milo_be_mnn, da_res_mnn_cond_tech, alpha = 0.1) +
-  scale_fill_gradient2(limits=c(-1, 4), name="log-Fold Change") +
-  scale_size(limits=c(10,130), name="Nhood size") +
+nh4 <- myPlotNhoodGraphDA(sim_milo_be_mnn, da_res_mnn_cond_tech, alpha = 0.1) +
+  scale_fill_gradient2(limits=c(-2, 5), name="log-Fold Change") +
+  # coord_fixed() +
+  scale_size(limits=c(10,130), range = c(0.5,3), name="Nhood size") +
   scale_edge_width(range = c(0.2,3), limits=c(0,40), name="overlap size") 
 
-pan_2 <- ((nh1 + ggtitle("~ condition")) | nh2 +  ggtitle('~ batch + condition'))  /
+pan_2 <- ((nh1 + facet_wrap("~ condition"~.) ) | nh2 + facet_wrap('~ batch + condition'~.))  /
   ((nh3 ) | nh4) +
-  plot_layout(guides="collect")
+  plot_layout(guides="collect") &
+  guides(fill=guide_colourbar(title.position="top", title.hjust = 0.5, barwidth = 6),
+         size=guide_legend(title.position="top", title.hjust = 0.5, ncol=2),
+         edge_width=guide_legend(title.position="top", title.hjust = 0.5, ncol=2)) &
+  theme(legend.position = "top")
 
 pan_2
 ```
 
-```{r, fig.width=15, fig.height=10}
-(pan_1 | pan_2) + plot_layout(widths=c(1,1)) +
-  ggsave("~/milo_output/batch_effect_sim_umaps.pdf", width = 13, height = 7)
+```{r, fig.width=15, fig.height=6}
+(pan_1 | pan_2) + plot_layout(widths=c(1,1.2)) +
+  ggsave("~/milo_output/batch_effect_sim_umaps.pdf", width = 15, height = 7)
 ```
 
 
@@ -382,17 +514,9 @@ outcomes_df %>%
   separate(col=set, sep="_", into=c('dataset', 'design')) %>%
   ggplot(aes(dataset, FPR, fill=design)) +
   geom_col(position="dodge")
-# 
-# outcomes_df %>%
-#   ggplot(aes(set, recall)) +
-#   geom_col()
-#   ggplot(aes(set, n, fill=outcome)) +
-#   geom_bar(stat = "identity", position="fill")
-#   geom_boxplot() +
-#   geom_point()
 ```
 ```{r}
-imap(res_ls, ~ .x %>%
+pl_right <- imap(res_ls, ~ .x %>%
     mutate(predDA = ifelse(SpatialFDR < 0.1, "Positive", "Negative")) %>%
     # mutate(outcome=factor(outcome, levels = c("TP", "TN", "FP", "FN"))) %>%
     group_by(predDA, trueDA) %>%
@@ -411,23 +535,28 @@ imap(res_ls, ~ .x %>%
   mutate(design=factor(design, levels=c("~ condition", "~ batch + condition"))) %>%
   ggplot(aes(trueDA, predDA, fill=n)) +
   geom_tile() +
-  geom_text(aes(label=n)) +
+  geom_text(aes(label=n), size=6) +
   facet_grid(dataset~design) +
-  coord_fixed() +
+  # coord_fixed() +
   ylab("Predicted") +
   xlab("True") +
   scale_fill_gradient(low="grey98", high="red", name="# neighbourhoods") +
-  theme_classic(base_size = 15) +
+  theme_classic(base_size = 20) +
   guides(fill = guide_colourbar(title.position="top", title.hjust = 0.5, barwidth = 10)) +
-  theme(legend.position = "top", legend.text = element_blank(), legend.justification = 'center') +
+  theme(legend.position = "top", legend.text = element_blank(), legend.justification = 'center') 
+
+pl_right +
   ggsave("~/milo_output/batch_effect_sim_confs.pdf", height = 5.3, width = 5.4)
 ```
 
-```{r}
-da_res_mnn_cond %>%
-  dplyr::filter(trueDA=="TP") 
-  
+Assemble figure
+
+
+```{r, fig.width=15, fig.height=6}
+(pan_1 | pan_2 | pl_right) + plot_layout(widths=c(1,1.1,0.8)) +
+  ggsave("~/milo_output/suppl_fig1.pdf", width = 18, height = 7.5)
 ```
+  
 
 
 

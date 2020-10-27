@@ -30,7 +30,7 @@ dataset <- generate_dataset(
   num_features = 5000
 )
 
-gex <- as.matrix(dataset$expression)
+gex <- as.matrix(dataset$expression) ## <---- HERE CHANGE TO COUNTS
 branches <- dataset$prior_information$groups_id
   
 ## Dimensionality reduction
