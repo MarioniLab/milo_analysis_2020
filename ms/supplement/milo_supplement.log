@@ -1,10 +1,10 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.22)  27 OCT 2020 16:41
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.27)  28 OCT 2020 14:48
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
 **milo_supplement.tex
 (./milo_supplement.tex
-LaTeX2e <2020-10-01> patch level 1
+LaTeX2e <2020-10-01> patch level 2
 L3 programming layer <2020-10-05> xparse <2020-03-03> (/home/jovyan/.TinyTeX/te
 xmf-dist/tex/latex/base/article.cls
 Document Class: article 2020/04/10 v1.4m Standard LaTeX document class
@@ -525,10 +525,10 @@ Package rerunfilecheck Info: File `milo_supplement.out' has not changed.
 (rerunfilecheck)             Checksum: 0AE0A8A4AB099918986EE4F2B64E6E2A;2069.
  ) 
 Here is how much of TeX's memory you used:
- 11009 strings out of 481865
- 156273 string characters out of 5931037
- 463440 words of memory out of 5000000
- 27081 multiletter control sequences out of 15000+600000
+ 11009 strings out of 481866
+ 156273 string characters out of 5931061
+ 463974 words of memory out of 5000000
+ 27080 multiletter control sequences out of 15000+600000
  596495 words of font info for 72 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  66i,6n,72p,1771b,333s stack positions out of 5000i,500n,10000p,200000b,80000s
@@ -548,7 +548,7 @@ TeX/texmf-dist/fonts/type1/public/lm/lmr7.pfb></home/jovyan/.TinyTeX/texmf-dist
 /fonts/type1/public/lm/lmri10.pfb></home/jovyan/.TinyTeX/texmf-dist/fonts/type1
 /public/lm/lmsy10.pfb></home/jovyan/.TinyTeX/texmf-dist/fonts/type1/public/lm/l
 mtt10.pfb>
-Output written on milo_supplement.pdf (12 pages, 32502993 bytes).
+Output written on milo_supplement.pdf (12 pages, 32502287 bytes).
 PDF statistics:
  947 PDF objects out of 1000 (max. 8388607)
  558 compressed objects within 6 object streams

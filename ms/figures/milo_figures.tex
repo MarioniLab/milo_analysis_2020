@@ -3,6 +3,7 @@
 \PassOptionsToPackage{hyphens}{url}
 %
 \documentclass[
+  10pt,
 ]{article}
 \usepackage{lmodern}
 \usepackage{amssymb,amsmath}
@@ -135,6 +136,17 @@
 
 
 
+
+\begin{figure}
+\centering
+\includegraphics{figs/figure5.pdf}
+\caption{\label{fig:fig-5}\textbf{Milo identifies the compositional disorder in cirrhotic liver}
+(A-B) UMAP embedding of 58358 cells from healthy (n = 5) and cirrhotic (n = 5) human livers. Cells are colored by cellular lineage (A) and injury condition (B)
+(C) Graph representation of neighbourhoods identified by Milo. Each node represents one neighbourhood and the layout is determined by the position of the neighbourhood index in the UMAP embedding of single cells. Neighbourhoods showing differential abundance at FDR 10\% are colored by log-fold change in abundance between healthy and cirrhotic samples. Node size is proportional to the number of cells in each neighbourhood. Edge size is proportional to the number of cells shared by the connected neighbourhoods.
+(D) Beeswarm plot showing the distribution of log-fold change in abundance between conditions in neighbourhoods from different cell type clusters. DA neighbourhoods at FDR 10\% are coloured. Cell types detected as DA through clustering by Ramachandran et al.~(2019) are annotated in the left side bar.
+(E) UMAP embedding and graph representation of neighbourhoods of 7995 cells from endothelial lineage.
+(F) Heatmap showing average neighbourhood expression of genes differentially expressed between DA neighbourhoods in the endothelial lineage (572 genes). Expression values for each gene are scaled between 0 and 1. Neighbourhoods are ranked by log-fold change in abundance between conditions.}
+\end{figure}
 
 
 
