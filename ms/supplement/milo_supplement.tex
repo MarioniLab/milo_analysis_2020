@@ -77,7 +77,7 @@
 \title{Supplementary information for
 \textbf{Differential cell-state abundance testing using k-NN graphs with \emph{Milo}}}
 \author{Emma Dann, Michael D. Morgan}
-\date{28 October, 2020}
+\date{02 November, 2020}
 
 \begin{document}
 \maketitle
@@ -238,9 +238,9 @@ Given the reduced dimension matrix used for graph construction \(X_{PC}\), for e
 
 \emph{Milo} builds upon the framework for differential abundance testing implemented by \emph{Cydar} {[}\protect\hyperlink{ref-lunTestingDifferentialAbundance2017}{3}{]}. In this section, we briefly describe the statistical model and adaptations to the KNN graph setting.
 
-\hypertarget{quasi-likelihood-negative-bionomial-generalized-linear-models}{%
-\paragraph*{Quasi-likelihood negative bionomial generalized linear models}\label{quasi-likelihood-negative-bionomial-generalized-linear-models}}
-\addcontentsline{toc}{paragraph}{Quasi-likelihood negative bionomial generalized linear models}
+\hypertarget{quasi-likelihood-negative-binomial-generalized-linear-models}{%
+\paragraph*{Quasi-likelihood negative binomial generalized linear models}\label{quasi-likelihood-negative-binomial-generalized-linear-models}}
+\addcontentsline{toc}{paragraph}{Quasi-likelihood negative binomial generalized linear models}
 
 We consider a neighbourhood \(n\) with cell counts \(y_{ns}\) for each sample \(s\). The counts are modelled by the negative binomial (NB) distribution, as it is supported over all non-negative integers and can accurately model both small and large cell counts. For such non-normally distributed data we use generalized-linear models (GLMs) as an extension of classic linear models that can accomodate complex experimental designs. We therefore assume that
 \[
@@ -269,11 +269,6 @@ To control for multiple testing, we adapt the Spatial FDR method introduced by \
 \max_i{p_{(i)}: p_{(i)}\le \alpha\frac{\sum_{l=1}^{i}w_{(l)}}{\sum_{l=1}^{n}w_{(l)}}}
 \]
 Where the weight \(w_{(i)}\) is the reciprocal of the neighbourhood connectivity \(c_n\). As a measure of neighbourhood connectivity, we use the euclidean distance to the kth nearest neighbour of the index cell for each neighbourhood.
-
-\hypertarget{visualization-of-da-neighbourhoods}{%
-\subsubsection{Visualization of DA neighbourhoods}\label{visualization-of-da-neighbourhoods}}
-
-To visualize results from differential analysis on neighbourhoods, we construct an abstracted graph, where nodes represent neighbourhoods and edges represent the amount of cells in common between neighbourhoods. The size of nodes represents the number of cells in the neighbourhood. The position of nodes is determined by the position of the sampled index cell in the single-cell UMAP, to allow qualitative comparison with the single cell embedding.
 
 \hypertarget{accounting-for-batch-effects}{%
 \subsection{Accounting for batch effects}\label{accounting-for-batch-effects}}
