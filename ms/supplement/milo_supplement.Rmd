@@ -122,7 +122,7 @@ Given the reduced dimension matrix used for graph construction $X_{PC}$, for eac
 
 _Milo_ builds upon the framework for differential abundance testing implemented by _Cydar_ [@lunTestingDifferentialAbundance2017]. In this section, we briefly describe the statistical model and adaptations to the KNN graph setting. 
 
-#### Quasi-likelihood negative bionomial generalized linear models {-}
+#### Quasi-likelihood negative binomial generalized linear models {-}
 
 <!-- For neighbourhood $n$ with counts $y_{ns}$ for each sample $s$, the counts are modelled as a quasi-negative binomial distribution with mean $\mu_{ns}$ with a generalized linear model. This means that we allow for overdispersion of the counts data. -->
 
@@ -161,10 +161,6 @@ Where the weight $w_{(i)}$ is the reciprocal of the neighbourhood connectivity $
 <!-- - vertex connectivity: the minimum number of vertices whose deletion from a graph $G$ disconnects $G$ -->
 <!-- - k-distance: the distance to the kth nearest neighbour of the index vertex (the vertex sampled to define the neighbourhood) -->
 <!-- - neighbour-distance: the average euclidean distance of points within a neighbourhood -->
-
-### Visualization of DA neighbourhoods
-
-To visualize results from differential analysis on neighbourhoods, we construct an abstracted graph, where nodes represent neighbourhoods and edges represent the amount of cells in common between neighbourhoods. The size of nodes represents the number of cells in the neighbourhood. The position of nodes is determined by the position of the sampled index cell in the single-cell UMAP, to allow qualitative comparison with the single cell embedding. 
 
 ## Accounting for batch effects
 
