@@ -89,6 +89,16 @@ sim_milo
 ```
 ```{r}
 saveRDS(sim_milo, "/nfs/team205/ed6/data/dynverse_simulation_milo.RDS")
+sim_milo <- readRDS("/nfs/team205/ed6/data/dynverse_simulation_milo.RDS")
+```
+```{r}
+### Doing this just because the original obj was an old Milo
+sim_milo1 <- sim_milo
+sim_milo <- as(sim_milo, "SingleCellExperiment")
+
+sim_milo <- Milo(sim_milo)
+sim_milo <- buildGraph(sim_milo, k=20, d=30)
+sim_milo <- makeNhoods(sim_milo, k=20, d=30)
 ```
 
 Visualize single cell dataset with UMAP
@@ -360,32 +370,17 @@ dist_p_ls_random <- lapply(unique(nh_stats$prop), function(p){
 
 ```
 
-```{r}
-# 
-# purrr::reduce(dist_p_ls, bind_rows) %>%
-#   # filter(prop==0.1) %>%
-#   mutate(bin=cut(distance, breaks = seq(0,16,by = 0.5), include.lowest = TRUE)) %>%
-#   mutate(bin= str_remove_all(as.character(bin), "\\(|\\[|,.+") %>% as.numeric()) %>%
-#   group_by(prop) %>%
-#   mutate(n_tot=n()) %>%
-#   ungroup() %>%
-#   group_by(prop, bin) %>%
-#   summarise(n=n(), n_tot=min(n_tot)) %>%
-#   mutate(frac = n/n_tot) %>%
-#   ggplot(aes(bin, y=frac, fill=as.factor(prop))) +
-#   geom_col(position="identity") +
-#   scale_fill_viridis_d() +
-#   # ggplot(aes(as.factor(prop), distance, fill=as.factor(prop))) +
-#   # geom_violin()
-#   facet_grid(as.factor(prop) ~., scales="free_y")
-```
-
 
 ```{r}
-
-mean_dist <- as.matrix(sim_milo@nhoodDistances) %>%
+sim_milo <- calcNhoodDistance(sim_milo, d=30)
+mean_dist <- lapply(
+  sim_milo@nhoodDistances, function(x)
+  as.matrix(x) %>%
   {ifelse(.==0, NA, .)} %>%
-  {.[!is.na(.)]}
+    {.[!is.na(.)]}
+)
+
+mean_dist <- purrr::reduce(mean_dist, c)
 closest_nn_dist <- rowMins(ifelse(dist_mat==0, 1000,dist_mat)) 
 
 bind_rows(
