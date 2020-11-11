@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.27)  2 NOV 2020 09:48
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.27)  11 NOV 2020 16:12
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -474,21 +474,21 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 [1
 
 {/home/jovyan/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
-<suppl_figs/suppl_fig1.pdf, id=62, 1300.86pt x 542.025pt>
-File: suppl_figs/suppl_fig1.pdf Graphic file (type pdf)
-<use suppl_figs/suppl_fig1.pdf>
-Package pdftex.def Info: suppl_figs/suppl_fig1.pdf  used on input line 98.
-(pdftex.def)             Requested size: 469.75827pt x 195.7326pt.
-<suppl_figs/suppl_fig2.pdf, id=63, 1156.32pt x 578.16pt>
-File: suppl_figs/suppl_fig2.pdf Graphic file (type pdf)
-<use suppl_figs/suppl_fig2.pdf>
-Package pdftex.def Info: suppl_figs/suppl_fig2.pdf  used on input line 112.
-(pdftex.def)             Requested size: 469.75385pt x 234.87692pt.
-<suppl_figs/suppl_fig3.pdf, id=64, 939.51pt x 722.7pt>
+<suppl_figs/suppl_fig3.pdf, id=62, 1027.84pt x 770.88pt>
 File: suppl_figs/suppl_fig3.pdf Graphic file (type pdf)
 <use suppl_figs/suppl_fig3.pdf>
-Package pdftex.def Info: suppl_figs/suppl_fig3.pdf  used on input line 124.
-(pdftex.def)             Requested size: 469.75385pt x 361.3491pt.
+Package pdftex.def Info: suppl_figs/suppl_fig3.pdf  used on input line 98.
+(pdftex.def)             Requested size: 469.75385pt x 352.31538pt.
+<suppl_figs/suppl_fig1.pdf, id=63, 1300.86pt x 542.025pt>
+File: suppl_figs/suppl_fig1.pdf Graphic file (type pdf)
+<use suppl_figs/suppl_fig1.pdf>
+Package pdftex.def Info: suppl_figs/suppl_fig1.pdf  used on input line 114.
+(pdftex.def)             Requested size: 469.75827pt x 195.7326pt.
+<suppl_figs/suppl_fig2.pdf, id=64, 1156.32pt x 578.16pt>
+File: suppl_figs/suppl_fig2.pdf Graphic file (type pdf)
+<use suppl_figs/suppl_fig2.pdf>
+Package pdftex.def Info: suppl_figs/suppl_fig2.pdf  used on input line 128.
+(pdftex.def)             Requested size: 469.75385pt x 234.87692pt.
 <suppl_figs/suppl_fig4.pdf, id=65, 744.0899pt x 825.69379pt>
 File: suppl_figs/suppl_fig4.pdf Graphic file (type pdf)
 <use suppl_figs/suppl_fig4.pdf>
@@ -512,22 +512,22 @@ Package pdftex.def Info: suppl_figs/suppl_fig7.pdf  used on input line 182.
 
 LaTeX Warning: Float too large for page by 52.1467pt on input line 185.
 
-[2 <./suppl_figs/suppl_fig1.pdf>] [3 <./suppl_figs/suppl_fig2.pdf>] [4 <./suppl
-_figs/suppl_fig3.pdf>] [5 <./suppl_figs/suppl_fig4.pdf>] [6 <./suppl_figs/suppl
+[2 <./suppl_figs/suppl_fig3.pdf>] [3 <./suppl_figs/suppl_fig1.pdf>] [4 <./suppl
+_figs/suppl_fig2.pdf>] [5 <./suppl_figs/suppl_fig4.pdf>] [6 <./suppl_figs/suppl
 _fig5.pdf>] [7 <./suppl_figs/suppl_fig6.pdf>] [8 <./suppl_figs/suppl_fig7.pdf>]
-[9]
+[9] [10]
 LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 2
 61.
 (/home/jovyan/.TinyTeX/texmf-dist/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2009/10/30 v1.6 Font defs for Latin Modern
-) [10] [11] [12] (./milo_supplement.aux)
+) [11] [12] (./milo_supplement.aux)
 Package rerunfilecheck Info: File `milo_supplement.out' has not changed.
 (rerunfilecheck)             Checksum: D7E27C87A05C579FFF516C90435C56BA;1822.
  ) 
 Here is how much of TeX's memory you used:
  11005 strings out of 481866
  156161 string characters out of 5931061
- 463901 words of memory out of 5000000
+ 462911 words of memory out of 5000000
  27078 multiletter control sequences out of 15000+600000
  596495 words of font info for 72 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
@@ -548,10 +548,10 @@ TeX/texmf-dist/fonts/type1/public/lm/lmr7.pfb></home/jovyan/.TinyTeX/texmf-dist
 /fonts/type1/public/lm/lmri10.pfb></home/jovyan/.TinyTeX/texmf-dist/fonts/type1
 /public/lm/lmsy10.pfb></home/jovyan/.TinyTeX/texmf-dist/fonts/type1/public/lm/l
 mtt10.pfb>
-Output written on milo_supplement.pdf (12 pages, 32501036 bytes).
+Output written on milo_supplement.pdf (12 pages, 35309670 bytes).
 PDF statistics:
- 941 PDF objects out of 1000 (max. 8388607)
- 552 compressed objects within 6 object streams
+ 959 PDF objects out of 1000 (max. 8388607)
+ 565 compressed objects within 6 object streams
  56 named destinations out of 1000 (max. 500000)
  108 words of extra memory for PDF output out of 10000 (max. 10000000)
 
