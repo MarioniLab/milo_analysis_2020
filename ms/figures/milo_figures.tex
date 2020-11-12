@@ -1,0 +1,158 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+  10pt,
+]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\hypersetup{
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+\urlstyle{same} % disable monospaced font for URLs
+\usepackage[margin=1in]{geometry}
+\usepackage{longtable,booktabs}
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{5}
+
+\author{}
+\date{\vspace{-2.5em}}
+
+\begin{document}
+
+\hypertarget{figures}{%
+\section*{Figures}\label{figures}}
+\addcontentsline{toc}{section}{Figures}
+
+\begin{figure}
+\centering
+\includegraphics{figs/figure1.pdf}
+\caption{\label{fig:fig-1}\textbf{Detecting perturbed cell states as differentially abundant graph neighbourhoods}
+(A) Schematic of the Milo workflow. Randomly sampled k-NN graph vertices (single-cells) are refined using a nearest-to median-position approach {[}REF{]}. Neighbourhoods are defined on each index vertex (cell), and cells are quantified according to the experimental design to generate a counts table. Per-neighbourhood cell counts are modelled using a negative binomial GLM, and hypothesis testing is performed to determine differentially abundant neighbourhoods.
+(B) A force-directed layout of a k-NN graph representing a simulated continuous trajectory of cells sampled from 2 experimental conditions (top panel - A: purple, B: white, bottom panel - kernel density of cells in condition `B').
+(C) Hypothesis testing using Milo accurately and specifically detects differentially abundant neighbourhoods (FDR 1\%). Red points denote DA neighbourhoods.
+(D) A force-directed layout of neighbourhoods, anchored using the layout in (B). Each point represents a neighbourhood, the size of the points corresponds to the numbers of cells in each neighbourhood. Lines between points represent the number of shared cells. The DA neighbourhoods (FDR 1\%) are colour by log fold-change.}
+\end{figure}
+
+
+
+
+
+
+
+\begin{figure}
+\centering
+\includegraphics{figs/figure2.pdf}
+\caption{\label{fig:fig-2}\textbf{Milo outperforms alternative differential abundance testing approaches}
+(A) An example simulated trajectory of cells drawn from 5 groups with cells assigned to either conditions `A' (purple points) or `B' (white points). Inset bar plot shows the number of cells (y-axis) assigned to each condition according to the group from which cells were sampled (x-axis).
+(B) Rankings of DA testing methods across a number of measures to determine performance. Each box is coloured by the ranking of the method for each method, where a rank of 1 indicates the best performance and 5 indicates the worst across 100 simulated data sets. Ranks are calculated from the mean value across 100 simulated data sets; mean values are shown. PPV: positive predictive value, NPV: negative predictive value, TPR: true positive rate, TNR: true negative rate, FOR: false omission rate, FNR: false negative rate, FPR: false positive rate, FDR: false discovery rate.
+(C) The Matthews correlation coefficient assesses the performance of each method by integrating across multiple performance measures. Box plots show the MCC across 100 independent simulations for each method.}
+\end{figure}
+
+
+
+
+
+
+\begin{figure}
+\centering
+\includegraphics{figs/figure3.pdf}
+\caption{\label{fig:fig-3}\textbf{Milo efficiently scales to large data sets}
+(A) Run time (y-axis) of the Milo workflow from graph building to differential abundance testing. Each point represents a down-sampled dataset, denoted by shape. Coloured points show the total number of cells in the full dataset labelled by the elapsed system time (mins).
+(B) Total memory usage (y-axis) across the Milo workflow. Each point represents a down-sampled dataset, denoted by shape. Coloured points are the full datasets labelled with the total memory usage (megabytes).}
+\end{figure}
+
+
+
+
+
+\begin{figure}
+\centering
+\includegraphics{figs/figure4.pdf}
+\caption{\label{fig:fig-4}\textbf{Milo identifies the decline of a fate-biased precursor in the ageing mouse thymus}
+(A) A UMAP of single thymic epithelial cells sampled from mice aged 1-52 weeks old. Points are labelled according to their designation in.
+(B) A UMAP, as in (A), showing the mouse age from which the single cells were derived.
+(C) A graph representation of the results from Milo differential abundance testing. Nodes are neighbourhoods, coloured by their log fold change across ages. Non-DA neighbourhoods (FDR 10\%) are coloured white, and sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods.
+(D) A swarm plot illustrating the relationship between Milo results and those reported in Baran-Gale et al.~Each panel shows the neighbourhoods containing cells from the reported clusters, as in (A), coloured by their log fold change across ages (x-axis). The left panels represent the age-related change in abundance of the cluster identified in Baran-Gale et al.~Red denotes a reduction of the cluster with age, whilst blue arrows denote clusters that increased in abundance.
+(E) A heatmap of genes differentially expressed between DA neighbourhoods in (D). Each column is a neighbourhood and rows are differentially expressed genes (FDR 1\%). The top panel denotes the neighbourhood DA log fold-change.}
+\end{figure}
+
+
+
+
+
+
+
+
+\begin{figure}
+\centering
+\includegraphics{figs/figure5.pdf}
+\caption{\label{fig:fig-5}\textbf{Milo identifies the compositional disorder in cirrhotic liver}
+(A-B) UMAP embedding of 58358 cells from healthy (n = 5) and cirrhotic (n = 5) human livers. Cells are colored by cellular lineage (A) and injury condition (B)
+(C) Graph representation of neighbourhoods identified by Milo. Each node represents one neighbourhood and the layout is determined by the position of the neighbourhood index in the UMAP embedding of single cells. Neighbourhoods showing differential abundance at FDR 10\% are colored by log-fold change in abundance between healthy and cirrhotic samples. Node size is proportional to the number of cells in each neighbourhood. Edge size is proportional to the number of cells shared by the connected neighbourhoods.
+(D) Beeswarm plot showing the distribution of log-fold change in abundance between conditions in neighbourhoods from different cell type clusters. DA neighbourhoods at FDR 10\% are coloured. Cell types detected as DA through clustering by Ramachandran et al.~(2019) are annotated in the left side bar.
+(E) UMAP embedding and graph representation of neighbourhoods of 7995 cells from endothelial lineage.
+(F) Heatmap showing average neighbourhood expression of genes differentially expressed between DA neighbourhoods in the endothelial lineage (572 genes). Expression values for each gene are scaled between 0 and 1. Neighbourhoods are ranked by log-fold change in abundance between conditions.}
+\end{figure}
+
+
+
+
+
+
+
+
+\end{document}

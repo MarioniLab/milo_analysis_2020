@@ -1,2 +1,3 @@
-# milo_analysis_2020
+# Milo analysis 2020
 Code to reproduce analysis of Milo manuscript
+

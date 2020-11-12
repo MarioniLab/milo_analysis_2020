@@ -1,0 +1,2221 @@
+---
+title: 'Milo: what is the relation between k, neighbourhood size and type I error  control?'
+output: html_notebook
+---
+
+# Introduction
+
+The purpose of `Milo` is to perform differential neighbourhood abundance testing. This requires a kNN graph and some way to choose a value of 
+$k$ such that there is some approximately optimal resolution of biologically informative cell states. The number of neighbourhoods in a data set is 
+therefore a function of both $k$ _and_ the total sample size, with no known formal relationship between the two. Emma has shown that the scaling 
+between sample size, $k$, neighbourhood size and the total number of neighbourhoods is not entirely intuitive. Therefore, we need some diagnostic plot 
+or way to choose an approximaltely optimal value of $k$ given the input data (and it's total size in numbers of cells).
+
+I will test 3 sets of simulations in order to develop this idea:
+
+* 3 discrete clusters
+* a simple linear trajectory
+* a complex bifurcating trajectory
+
+I'll also test a real-word data set (thymus), and down-sample to acheive different total sample sizes.
+
+I will vary the total sample size in each case (total number of cells), and construct a variety of graphs with $k$ vary from very small (k=5) to 
+very large (k=100). These graphs will then be used to define the neighbourhoods using the refined sampling scheme, and perform DA testing. For each 
+graph I will record:
+
+* edge connectivtiy
+* vertex connectivity __NB__ (19-08-2020): I've dropped vertex connectivity - it takes too long to compute on highly connected and large graphs
+* node degree
+* neighbourhood size distribution
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+### Set up a mock data set using simulated data
+library(ggplot2)
+library(igraph)
+library(ggthemes)
+library(ggsci)
+library(umap)
+library(reshape2)
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(irlba)
+library(MASS)
+library(Rfast)
+library(igraph)
+library(miloR)
+library(dyntoy)
+```
+
+# Simulation 1: 3 discrete clusters - no DA neighbourhoods
+
+I've recapitulated the simulation code I used here. In reality I ran this on the cluster as it is quite laborious to run it on my laptop. I can read in 
+the necessary data and results as I wish though. I have deliberatley set the simulations such that there _should_ be no DA neighbourhoods - and thus any 
+discoveries should fall at or below the expected number given the FDR (1%).
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+# return a Milo object of the expected size
+simulate_discrete_data <- function(n.clusters=3, total.size=100, cells.per.cluster=c(30, 30, 40),
+                                   condition.props=c(0.5, 0.5, 0.5)){
+    set.seed(42)
+    r.n <- 1000
+    n.dim <- 50
+    if(n.clusters != length(cells.per.cluster)){
+        stop("Number of clusters must equal the length of cells.per.cluster")
+    }
+    
+    if(total.size != sum(cells.per.cluster)){
+        stop("Total sample size must match the sum of cells.per.cluster")
+    }
+    
+    gex.list <- list()
+    for(x in seq_along(1:n.clusters)){
+        block.cells <- cells.per.cluster[x]
+        # select a set of eigen values for the covariance matrix of each block, say 50 eigenvalues?
+        # randomly sample a mean value
+        block.mean <- runif(n=1, min=2, max=7)
+        block.eigens <- sapply(1:n.dim, FUN=function(X) rexp(n=1, rate=abs(runif(n=1, min=0, max=50))))
+        block.eigens <- block.eigens[order(block.eigens)]
+        block.p <- qr.Q(qr(matrix(rnorm(block.cells^2, mean=4, sd=0.01), block.cells)))
+        block.sigma <- crossprod(block.p*block.eigens, block.p*block.eigens)
+        block.gex <- abs(Rfast::rmvnorm(n=r.n, mu=rnorm(n=block.cells, mean=block.mean, sd=0.01), sigma=block.sigma))
+        gex.list[[paste0("Block", x)]] <- block.gex
+        
+    }
+    
+    sim.gex <- do.call(cbind, gex.list)
+    colnames(sim.gex) <- paste0("Cell", 1:ncol(sim.gex))
+    rownames(sim.gex) <- paste0("Gene", 1:nrow(sim.gex))
+    sim.pca <- prcomp_irlba(t(sim.gex), n=50, scale.=TRUE, center=TRUE)
+    
+    if(length(condition.props) != length(cells.per.cluster)){
+        stop("The length of condition.props must be the same as the length of cells.per.cluster")
+    }
+    
+    cond.list <- list()
+    cell.list <- list()
+    for(i in seq_along(condition.props)){
+        set.seed(42)
+        block.cells <- cells.per.cluster[i]
+        cell.list[[paste0("Block", i)]] <- block.cells
+        
+        block.cond <- rep("A", block.cells)
+        block.a <- sample(1:block.cells, size=floor(block.cells*condition.props[i]))
+        block.b <- setdiff(1:block.cells, block.a)
+        block.cond[block.b] <- "B"
+        cond.list[[paste0("Block", i)]] <- block.cond
+    }
+    blocks <- lapply(c(1:length(cell.list)), FUN=function(X) rep(paste0("B", X), cell.list[[X]]))
+    rep.prop <- round(1/length(cells.per.cluster), 2)
+    reps <- lapply(c(1:length(cell.list)), FUN=function(X) c(rep("R1", floor(cell.list[[X]] * rep.prop)),
+                                                             rep("R2", floor(cell.list[[X]] * rep.prop)),
+                                                             rep("R3", cell.list[[X]] - (2*floor(cell.list[[X]] * rep.prop)))))
+    
+    meta.df <- data.frame("Block"=unlist(blocks),
+                          "Condition"=unlist(cond.list),
+                          "Replicate"=unlist(reps))
+    colnames(meta.df) <- c("Block", "Condition", "Replicate")
+    rownames(meta.df) <- paste0("Cell", 1:nrow(meta.df))
+    # define a "sample" as teh combination of condition and replicate
+    meta.df$Sample <- paste(meta.df$Condition, meta.df$Replicate, sep="_")
+    meta.df$Vertex <- c(1:nrow(meta.df))
+    
+    sim.sce <- SingleCellExperiment(assays=list(logcounts=sim.gex),
+                                    reducedDims=list("PCA"=sim.pca$x))
+    
+    sim.mylo <- Milo(sim.sce)
+    return(list("mylo"=sim.mylo, "meta"=meta.df))
+    
+}
+
+```
+
+I have simulated data sets from 500 up to 20000 cells to try to capture a realistic range of experiment sizes.
+
+```{r}
+milo.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+milo.files <- milo.files[grepl(milo.files, pattern="NODA")]
+milo.files <- milo.files[grepl(milo.files, pattern="Cluster")]
+sim.data <- lapply(milo.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+sim.data1 <- sim.data[[1]]
+sim1.umap <- umap(reducedDim(sim.data1$mylo, "PCA")[, c(1:30)],
+                  n_components=2,
+                  n_neighbors=21, metric='euclidean',
+                  init='random', min_dist=0.1)
+
+meta.df <- cbind(sim.data1$meta, sim1.umap$layout)
+colnames(meta.df) <- c("Block", "Condition", "Replicate", "Sample", "Vertex", "UMAP1", "UMAP2")
+
+ggplot(meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Block, shape=Replicate)) +
+  theme_clean() +
+  scale_colour_npg() +
+  facet_wrap(~Condition) +
+  guides(colour=guide_legend(override.aes=list(size=3)),
+         shape=guide_legend(override.aes=list(size=3)))
+```
+
+This is an example UMAP of the data set with 1000 cells. I have looped over the Milo objects and build a series of graphs varying $k$ from 5 to 100,
+refined neighbourhoods and performed DA testing at 1% FDR, as well as computing the metrics above.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="(30000)|(50000)")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Cluster")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="NODA")]
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="(30000)|(50000)")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Cluster")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="NODA")]
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+graph.stats <- do.call(rbind.data.frame, kstat.list)
+graph.stats$K <- ordered(graph.stats$K,
+                         levels=c(unique(as.numeric(graph.stats$K))[order(unique(as.numeric(graph.stats$K)), decreasing=FALSE)]))
+graph.stats$NCells <- ordered(graph.stats$NCells,
+                         levels=c(unique(as.numeric(graph.stats$NCells))[order(unique(as.numeric(graph.stats$NCells)), decreasing=FALSE)]))
+
+res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+res.df <- do.call(rbind.data.frame, res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$k <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1]))))
+totdr.df$N <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=log10(Nhood.Size))) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This shows how the neighbourhood size is a function of both $k$ and total sample size.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+The heatmap shows the size of the total data set (#Cells) and the value of $k$ used to construct the graph and neighbourhoods. The tiles are coloured by 
+the proportion of neighbourhoods that DA at a 1 %FDR. This shows that the FDR is very well controlled for the discrete case where there neighbourhoods 
+are highly unlikely to overlap, with the robust dispersion estimation.
+
+We can see the same plot but using the number of total neighbourhoods instead.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k)) +
+    geom_point(shape=21, size=4) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+```
+
+This reinforces the fact that in the 3 discrete cluster context the FDR is properly controlled over a variety of sample sizes and values of $k$.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+graph.melt <- melt(graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+These are the different graph and neighbourhood summary statistics. The connectivity measures aren't very informative, owing to the fact that just 
+removing a single edge or vertex is sufficient to create a disjoint graph. The average node degree increases with $k$ which makes sense as each vertex is 
+able to connect to more vertices. What is perhaps more interesting is that within a value of $k$ the node degree saturates fairly quickly, but inversely 
+proportion to the size of the data set. This is also reflected in the variance of the node degree, which still increases implying that with more cells 
+in the data set the range of connections continues to increase, but it is not a universal function, and so some vertices are still only connected to very 
+few other vertices.
+
+The mean neighbourhood size is also very interesting as it increases with $k$, but reaches a peak in the N=5000 data set, before falling, implying that 
+the maximum neighbourhood size is constrained by $k$, and the size of the data set. It looks as if for small values of $k$ this maximal neighbourhood 
+size is reached in smaller data sets. For instace, the maximum mean neighbourhood size for $k=30$ is in the data set with N=1000 cells, but for $k=75$ 
+it is N=5000 cells. These data sets are fairly trivial in their composition, so it will be interesting to see if this holds true for more complex 
+(realistic) simulations. The variance in neighbourhood size also seems to reach a plateau, indicating that it is likewise constrained by both $k$ and 
+the total sample size.
+
+## Conclusion
+
+The 3 discrete clusters case is so trivial that we can properly control the FDR at every sample size and value of $k$. This suggests that the issues 
+that Emma encountered are more likely a matter of continuous trajectories, and are therefore more likely to occur in the kinds of real-world data sets 
+for which we envisage `Milo` will be used on.
+
+# Simulation 1: 3 discrete clusters, with DA neighbourhoods in a single cluster
+
+Seeing as there were no false positives when no neighbourhoods were DA, I have simulated differentially abundant neighbourhoods in one cluster from the 
+above simulations, and repeated the graph building and DA testing steps as before.
+
+```{r}
+milo.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+milo.files <- milo.files[grepl(milo.files, pattern="C1DA")]
+milo.files <- milo.files[grepl(milo.files, pattern="Cluster")]
+sim.data <- lapply(milo.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+sim.data1 <- sim.data[[1]]
+sim1.umap <- umap(reducedDim(sim.data1$mylo, "PCA")[, c(1:30)],
+                  n_components=2,
+                  n_neighbors=21, metric='euclidean',
+                  init='random', min_dist=0.1)
+
+meta.df <- cbind(sim.data1$meta, sim1.umap$layout)
+colnames(meta.df) <- c("Block", "Condition", "Replicate", "Sample", "Vertex", "UMAP1", "UMAP2")
+
+ggplot(meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Block, shape=Replicate)) +
+  theme_clean() +
+  scale_colour_npg() +
+  facet_wrap(~Condition) +
+  guides(colour=guide_legend(override.aes=list(size=3)),
+         shape=guide_legend(override.aes=list(size=3)))
+```
+
+This is an example UMAP of the data set with 1000 cells and 1:9 mixing of cells in cluster B1. 
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="(30000)|(50000)")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Cluster")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="C1DA")]
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="(30000)|(50000)")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Cluster")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="C1DA")]
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+graph.stats <- do.call(rbind.data.frame, kstat.list)
+graph.stats$K <- ordered(graph.stats$K,
+                         levels=c(unique(as.numeric(graph.stats$K))[order(unique(as.numeric(graph.stats$K)), decreasing=FALSE)]))
+graph.stats$NCells <- ordered(graph.stats$NCells,
+                         levels=c(unique(as.numeric(graph.stats$NCells))[order(unique(as.numeric(graph.stats$NCells)), decreasing=FALSE)]))
+
+res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+res.df <- do.call(rbind.data.frame, res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$k <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1]))))
+totdr.df$N <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=log10(Nhood.Size))) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This shows how the neighbourhood size is a function of both $k$ and total sample size. It seems unaffected by how many neighbourhoods are DA.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+The heatmap shows the size of the total data set (#Cells) and the value of $k$ used to construct the graph and neighbourhoods. The tiles are coloured by 
+the proportion of neighbourhoods that DA at a 1 %FDR. This shows a complex relationship between $k$, sample size and FDR. We would not expect 60% of 
+neighbourhoods to be DA, for instance, if there are roughly equal numbers of neighbourhoods split across the 3 clusters.
+
+We can see the same plot but using the number of total neighbourhoods instead.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/3, colour='red', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    expand_limits(y=c(0))
+
+ggsave("~/Dropbox/Milo/simulations/Discrete_sim_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+The first thing to gleen from this plot is that small values of $k$, in general, lead to a smaller number of DA neighbourhoods. It also looks like data 
+sets with very few neighbourhoods tend to have a much higher proportion of discoveries (presumably false). For this experiment I would expect, at most, 
+1/3 of DA neighbourhoods. The purple horizontal line shows the FDR (1%) and the red line shows the expected number of discoveries given the simulation 
+(~33%). Across a range of values of $k$ and neighbourhood size we can see that points fall betwen the red and purple lines, which is roughly where we 
+want them, albeit closer to the red line if possible.
+
+So from this we can say that a small $k$, say $\lt20$, lacks sensitivity as some neighbourhoods are missed, or we are overly-conservative, where as 
+values $30 \leq k \leq 100$ are mostly optimal for data sets with many neighbourhoods. Let's plot the false discoveries as a function of sample size.
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/3, colour='red', lty=2) +
+    geom_point(shape=21, size=4) +
+    theme_bw() +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+```
+
+This plot shows the ratio of #Nhoods to sample size on the x-axis with the proportion of discoveries on the y-axis; the red and purple lines are the 
+same as above. Points are coloured by $k$. In data sets with $\#Nhood/N \lt 0.1$ there is a huge type I error inflation, with no obvious relation to 
+$k$. Once we get above 0.1 we start to see the % of discoveries in the expected range, with the aforementioned conservatism for $k \lt 20$. This 
+reinforces the idea that the only parameter that needs tuning, strictly speaking, is $k$, as the \#Nhoods is a function of $k$ and how connected the 
+graph is.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+graph.stats$NCells <- as.numeric(as.character(graph.stats$NCells))
+graph.stats$Av.NhoodRatio <- graph.stats$Mean.Nhood.Size/graph.stats$NCells
+
+graph.stats$NCells <- ordered(graph.stats$NCells,
+                         levels=c(unique(as.numeric(graph.stats$NCells))[order(unique(as.numeric(graph.stats$NCells)), decreasing=FALSE)]))
+graph.melt <- melt(graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+I've added the ratio of (mean) Nhood size/N cells to the graph stats. This value seems to decline fairly rapidly across sample sizes, I guess as the 
+mean nhood size grows more slowly than the sample size. How does this relate to the % DA neighbourhoods though?
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k)) +
+     geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/3, colour='red', lty=2) +
+    geom_point(shape=21, size=3) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    NULL
+```
+
+This shows the proportion of discoveries on the y-axis and the mean neighbourhood size on the x-axis, with points coloured by $k$. Here we can see 
+how the mean neighbourhood size (mostly) increases with $k$, but so do the proportion of false discoveries (points above the red line). This suggest that 
+there is not necessarily an optimal mean neighbourhood size, as it depends hugely on the sample size, but rather the ratio of the number of 
+neighbourhoods to the sample size, which only depends on $k$. If we control that number, then I would expect that this would control the type I error 
+inflation seen here.
+
+## Conclusion
+
+The magic number to look at seems to be the ratio of \# neighbourhoods to sample size, which would allow us to tune $k$ to fall in this optimal range. 
+I'll need test this out on the linear trajectory to see if these patterns hold up. First though, what is the effect of turning off the robust dispersion 
+estimation for both the DA and no-DA scenarios.
+
+# Simulation 1: 3 discrete clusters, no DA neighbourhoods, no robust dispersion estimation
+
+This is the same as running the simulation withouth and DA neighbourhoods, but turning off the robust dispersion estimation in `edgeR`.
+
+```{r}
+milo.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+milo.files <- milo.files[grepl(milo.files, pattern="NODA")]
+milo.files <- milo.files[grepl(milo.files, pattern="Cluster")]
+sim.data <- lapply(milo.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+sim.data1 <- sim.data[[1]]
+sim1.umap <- umap(reducedDim(sim.data1$mylo, "PCA")[, c(1:30)],
+                  n_components=2,
+                  n_neighbors=21, metric='euclidean',
+                  init='random', min_dist=0.1)
+
+meta.df <- cbind(sim.data1$meta, sim1.umap$layout)
+colnames(meta.df) <- c("Block", "Condition", "Replicate", "Sample", "Vertex", "UMAP1", "UMAP2")
+
+ggplot(meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Block, shape=Replicate)) +
+  theme_clean() +
+  scale_colour_npg() +
+  facet_wrap(~Condition) +
+  guides(colour=guide_legend(override.aes=list(size=3)),
+         shape=guide_legend(override.aes=list(size=3)))
+```
+
+This is an example UMAP of the data set with 1000 cells and 1:9 mixing of cells in cluster B1. 
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="(30000)|(50000)")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Cluster")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="NODA")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="(30000)|(50000)")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Cluster")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="NODA")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+graph.stats <- do.call(rbind.data.frame, kstat.list)
+graph.stats$K <- ordered(graph.stats$K,
+                         levels=c(unique(as.numeric(graph.stats$K))[order(unique(as.numeric(graph.stats$K)), decreasing=FALSE)]))
+graph.stats$NCells <- ordered(graph.stats$NCells,
+                         levels=c(unique(as.numeric(graph.stats$NCells))[order(unique(as.numeric(graph.stats$NCells)), decreasing=FALSE)]))
+
+res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+res.df <- do.call(rbind.data.frame, res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(res.list, FUN=function(RX) sum(RX$SpatialFDR <= 0.01)/nrow(RX))
+nhood.size <- lapply(res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$k <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1]))))
+totdr.df$N <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=log10(Nhood.Size))) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This shows how the neighbourhood size is a function of both $k$ and total sample size. It seems unaffected by how many neighbourhoods are DA.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+The heatmap shows the size of the total data set (#Cells) and the value of $k$ used to construct the graph and neighbourhoods. The tiles are coloured by 
+the proportion of neighbourhoods that DA at a 1 %FDR. Even without the robust dispersion estimation there are _still_ no DA neighbourhoods.
+
+We can see the same plot but using the number of total neighbourhoods instead.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/3, colour='red', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    expand_limits(y=c(0))
+
+ggsave("~/Dropbox/Milo/simulations/Discrete_sim-noRobust_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+It seems that the robust dispersion estimation makes very little difference in this trivial case.
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/3, colour='red', lty=2) +
+    geom_point(shape=21, size=4) +
+    theme_bw() +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+```
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+graph.stats$NCells <- as.numeric(as.character(graph.stats$NCells))
+graph.stats$Av.NhoodRatio <- graph.stats$Mean.Nhood.Size/graph.stats$NCells
+
+graph.stats$NCells <- ordered(graph.stats$NCells,
+                         levels=c(unique(as.numeric(graph.stats$NCells))[order(unique(as.numeric(graph.stats$NCells)), decreasing=FALSE)]))
+graph.melt <- melt(graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+I've added the ratio of (mean) Nhood size/N cells to the graph stats. This value seems to decline fairly rapidly across sample sizes, I guess as the 
+mean nhood size grows more slowly than the sample size. How does this relate to the % DA neighbourhoods though?
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k)) +
+     geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/3, colour='red', lty=2) +
+    geom_point(shape=21, size=3) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    NULL
+```
+
+
+## Conclusion
+
+Removing the robust dispersion estimation has no discernable impact in these trivial simulations with no DA - what about in the presence of DA?
+
+# Simulation 1: 3 discrete clusters, with DA neighbourhoods in a single cluster, no robust dispersion estimation
+
+This uses the simulations above where there is a single DA cluster, but without the robust dispersion estimation. Do we see any elevated type I error?
+
+```{r}
+milo.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+milo.files <- milo.files[grepl(milo.files, pattern="C1DA")]
+milo.files <- milo.files[grepl(milo.files, pattern="Cluster")]
+sim.data <- lapply(milo.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+sim.data1 <- sim.data[[1]]
+sim1.umap <- umap(reducedDim(sim.data1$mylo, "PCA")[, c(1:30)],
+                  n_components=2,
+                  n_neighbors=21, metric='euclidean',
+                  init='random', min_dist=0.1)
+
+meta.df <- cbind(sim.data1$meta, sim1.umap$layout)
+colnames(meta.df) <- c("Block", "Condition", "Replicate", "Sample", "Vertex", "UMAP1", "UMAP2")
+
+ggplot(meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Block, shape=Replicate)) +
+  theme_clean() +
+  scale_colour_npg() +
+  facet_wrap(~Condition) +
+  guides(colour=guide_legend(override.aes=list(size=3)),
+         shape=guide_legend(override.aes=list(size=3)))
+```
+
+This is an example UMAP of the data set with 1000 cells and 1:9 mixing of cells in cluster B1. 
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="(30000)|(50000)")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Cluster")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="C1DA")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="(30000)|(50000)")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Cluster")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="C1DA")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+graph.stats <- do.call(rbind.data.frame, kstat.list)
+graph.stats$K <- ordered(graph.stats$K,
+                         levels=c(unique(as.numeric(graph.stats$K))[order(unique(as.numeric(graph.stats$K)), decreasing=FALSE)]))
+graph.stats$NCells <- ordered(graph.stats$NCells,
+                         levels=c(unique(as.numeric(graph.stats$NCells))[order(unique(as.numeric(graph.stats$NCells)), decreasing=FALSE)]))
+
+res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+res.df <- do.call(rbind.data.frame, res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$k <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1]))))
+totdr.df$N <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=log10(Nhood.Size))) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This shows how the neighbourhood size is a function of both $k$ and total sample size. It seems unaffected by how many neighbourhoods are DA.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+The heatmap shows the size of the total data set (#Cells) and the value of $k$ used to construct the graph and neighbourhoods. The tiles are coloured by 
+the proportion of neighbourhoods that DA at a 1 %FDR. It doesn't look like turning off the robust dispersion estimation has any qualitative imapct.
+
+We can see the same plot but using the number of total neighbourhoods instead.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/3, colour='red', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    expand_limits(y=c(0))
+
+ggsave("~/Dropbox/Milo/simulations/Discrete_sim-noRobust_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+I think this might be almost identical to the case without robust dispersion estimation. From ~2000 cells onwards there are considerably fewer false 
+positive DA neighbourhoods.
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/3, colour='red', lty=2) +
+    geom_point(shape=21) +
+    guides(fill=guide_legend(override.aes = list(size=4))) +
+    theme_bw() +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+```
+
+Again, this pattern is extremely similar - I'd say there is essentially no impact of removing the robust dispersion estimation.
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+     geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/3, colour='red', lty=2) +
+    geom_point(shape=21) +
+    guides(fill=guide_legend(override.aes = list(size=4))) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    NULL
+```
+
+## Conclusion
+
+I'll move onto the slightly more realistic scenario of a linear trajectory.
+
+# Simulation 2: a single linear trajectory - no DA neighbourhoods
+
+To construct the linear trajectories I'll use the same approach as Emma using the `dyntoy` package. I'll simulate data sets of the same total size 
+as for the 3 cluster discrete case. Again, this needs to be done on the cluster owing to the computational intensity. The code block below is for 
+reference only.
+
+```{r, warning=FALSE, message=FALSE}
+simulate_linear_trajectory <- function(n.milestones=3, total.size=100){
+    dataset <- generate_dataset(
+        model = model_linear(num_milestones = n.milestones),
+        num_cells = total.size,
+        num_features = 2000
+        )
+    
+    ## Build SingleCellExperiment object
+    cnts <- t(dataset$counts)
+    coldata <- data.frame(row.names = colnames(cnts), dataset$prior_information$groups_id)
+    
+    sce <- SingleCellExperiment(assays=list(counts=cnts), colData=coldata)
+    mylo <- Milo(sce)
+}
+```
+
+I fixed the number of milestones at 5 at set the balance to be 50:50 between conditions 'A' and 'B'. As before I have then run the standard steps in the 
+`Milo` workflow, including building graphs with vary values of $k$, and performed DA testing with 1% FDR.
+
+```{r}
+milo.traj.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+milo.traj.files <- milo.traj.files[grepl(milo.traj.files, pattern="Trajectory")]
+milo.traj.files <- milo.traj.files[grepl(milo.traj.files, pattern="NODA")]
+
+sim.traj.data <- lapply(milo.traj.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+sim.traj.data1 <- sim.traj.data[[1]]
+set.seed(42)
+sim1.traj.umap <- umap(reducedDim(sim.traj.data1$mylo, "PCA")[, c(1:30)],
+                       n_components=2,
+                       n_neighbors=21, metric='euclidean',
+                       init='random', min_dist=0.1)
+
+traj.meta.df <- cbind(as.data.frame(sim.traj.data1$meta), sim1.traj.umap$layout)
+colnames(traj.meta.df) <- c("CellID", "Block", "Condition", "Replicate", "Sample", "UMAP1", "UMAP2")
+
+ggplot(traj.meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Block, shape=Replicate)) +
+  theme_clean() +
+  scale_colour_npg() +
+  facet_wrap(~Condition) +
+  guides(colour=guide_legend(override.aes=list(size=3)),
+         shape=guide_legend(override.aes=list(size=3)))
+```
+
+This is the simulated trajectory with 1000 cells.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Trajectory")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="NODA")]
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Trajectory")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="NODA")]
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+traj.graph.stats <- do.call(rbind.data.frame, kstat.list)
+traj.graph.stats$K <- ordered(traj.graph.stats$K,
+                         levels=c(unique(as.numeric(traj.graph.stats$K))[order(unique(as.numeric(traj.graph.stats$K)), decreasing=FALSE)]))
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+
+traj.res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    traj.res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+traj.res.df <- do.call(rbind.data.frame, traj.res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(traj.res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(traj.res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$k <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1]))))
+totdr.df$N <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+The heatmap shows the size of the total data set (#Cells) and the value of $k$ used to construct the graph and neighbourhoods. The tiles are coloured by 
+the proportion of neighbourhoods that DA at a 1 %FDR. This shows that the FDR is very well controlled for the simple linear trajectory case where 
+neighbourhoods might overlap, but none of them are significantly DA.
+
+We can see the same plot but using the number of total neighbourhoods instead.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k)) +
+    geom_point(shape=21, size=4) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+```
+
+This reinforces the fact that in the linear trajectory context the FDR is properly controlled over a variety of sample sizes and values of $k$ when 
+there are no DA neighbourhoods.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+graph.melt <- melt(traj.graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+## Conclusion
+
+When there are no DA neighbourhoods then the type I error rate is very well controlled in both the simple discrete and simple linear trajectory cases. I 
+will now repeat these simulations, have a single group of cells that are DA between conditions. This way I can detect if there any neigbbourhoods that 
+are falsely DA. Does the robust dispersion have the same impact here as in the trivial 3 cluster case?
+
+# Simulation 2: a single linear trajectory - no DA neighbourhoods, no robust dispersion estimation
+
+All other details are identical to above, only the dispersion estimation is different.
+
+```{r}
+milo.traj.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+milo.traj.files <- milo.traj.files[grepl(milo.traj.files, pattern="Trajectory")]
+milo.traj.files <- milo.traj.files[grepl(milo.traj.files, pattern="NODA")]
+
+sim.traj.data <- lapply(milo.traj.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+sim.traj.data1 <- sim.traj.data[[1]]
+set.seed(42)
+sim1.traj.umap <- umap(reducedDim(sim.traj.data1$mylo, "PCA")[, c(1:30)],
+                       n_components=2,
+                       n_neighbors=21, metric='euclidean',
+                       init='random', min_dist=0.1)
+
+traj.meta.df <- cbind(as.data.frame(sim.traj.data1$meta), sim1.traj.umap$layout)
+colnames(traj.meta.df) <- c("CellID", "Block", "Condition", "Replicate", "Sample", "UMAP1", "UMAP2")
+
+ggplot(traj.meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Block, shape=Replicate)) +
+  theme_clean() +
+  scale_colour_npg() +
+  facet_wrap(~Condition) +
+  guides(colour=guide_legend(override.aes=list(size=3)),
+         shape=guide_legend(override.aes=list(size=3)))
+```
+
+This is the simulated trajectory with 1000 cells.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Trajectory")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="NODA")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Trajectory")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="NODA")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+traj.graph.stats <- do.call(rbind.data.frame, kstat.list)
+traj.graph.stats$K <- ordered(traj.graph.stats$K,
+                         levels=c(unique(as.numeric(traj.graph.stats$K))[order(unique(as.numeric(traj.graph.stats$K)), decreasing=FALSE)]))
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+
+traj.res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    traj.res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+traj.res.df <- do.call(rbind.data.frame, traj.res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(traj.res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(traj.res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$k <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1]))))
+totdr.df$N <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+The heatmap shows the size of the total data set (#Cells) and the value of $k$ used to construct the graph and neighbourhoods. The tiles are coloured by 
+the proportion of neighbourhoods that DA at a 1 %FDR. This shows that the FDR is very well controlled for the simple linear trajectory case where 
+neighbourhoods might overlap, but none of them are significantly DA. Again, the lack of robust dispersion estimation seems to make little difference.
+
+We can see the same plot but using the number of total neighbourhoods instead.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k)) +
+    geom_point(shape=21, size=4) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+```
+
+This reinforces the fact that in the linear trajectory context the FDR is properly controlled over a variety of sample sizes and values of $k$ when 
+there are no DA neighbourhoods.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+graph.melt <- melt(traj.graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+## Conclusion
+
+The lack of robust dispersion estimation seems to make very little difference in the absence of any DA neighbourhoods.
+
+# Simulation 2: a single linear trajectory - DA neighbourhoods in group 1 only
+
+I've constructed the same linear trajectories as above, but this time I have created a 9:1 imbalance in just the first group (M1). I fixed the number of 
+milestones at 5 and 9:1 ratio of 'A':'B' in group M1. As before I have then run the standard steps in the `Milo` workflow, including building graphs with 
+vary values of $k$, and performed DA testing with 1% FDR.
+
+```{r}
+milo.traj.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+milo.traj.files <- milo.traj.files[grepl(milo.traj.files, pattern="Trajectory")]
+milo.traj.files <- milo.traj.files[grepl(milo.traj.files, pattern="M1DA")]
+
+sim.traj.data <- lapply(milo.traj.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+sim.traj.data1 <- sim.traj.data[[1]]
+set.seed(42)
+sim1.traj.umap <- umap(reducedDim(sim.traj.data1$mylo, "PCA")[, c(1:30)],
+                       n_components=2,
+                       n_neighbors=21, metric='euclidean',
+                       init='random', min_dist=0.1)
+
+traj.meta.df <- cbind(as.data.frame(sim.traj.data1$meta), sim1.traj.umap$layout)
+colnames(traj.meta.df) <- c("CellID", "Block", "Condition", "Replicate", "Sample", "UMAP1", "UMAP2")
+
+ggplot(traj.meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Block, shape=Replicate)) +
+  theme_clean() +
+  scale_colour_npg() +
+  facet_wrap(~Condition) +
+  guides(colour=guide_legend(override.aes=list(size=3)),
+         shape=guide_legend(override.aes=list(size=3)))
+```
+
+This is the simulated trajectory with 1000 cells and only DA cells in M1.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Trajectory")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="M1DA")]
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Trajectory")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="M1DA")]
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+traj.graph.stats <- do.call(rbind.data.frame, kstat.list)
+traj.graph.stats$K <- ordered(traj.graph.stats$K,
+                         levels=c(unique(as.numeric(traj.graph.stats$K))[order(unique(as.numeric(traj.graph.stats$K)), decreasing=FALSE)]))
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+
+traj.res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    traj.res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+traj.res.df <- do.call(rbind.data.frame, traj.res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(traj.res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(traj.res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$k <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1]))))
+totdr.df$N <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This heatmap shows the proporiton of DA neighbourhoods as a function of $k$ and the total sample size. My expectation is that ~1/5th of of neighbourhoods 
+would be DA at most, whereas here the numbers seem a little lower than that ($\lt 0.2$).
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/5, colour='red', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    guides(fill=guide_legend(override.aes=list(size=3))) +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+
+ggsave("~/Dropbox/Milo/simulations/Trajectory_sim_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+Somewhat interestingly this suggests that there are very few false DA neighbourhoods, which might also indicate that our correction is 
+overly-conservative. This creates a problem for evaluating the FDR in relation to graph parameters!
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+graph.melt <- melt(traj.graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+The average neighbourhood size plateaus here, which increases with $k$, but not sample size as before. In general these patterns do not seem to be 
+undully influenced by the presence of DA neighbourhoods, which is encouraging. What then is the relation with the discovery rate?
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/5, colour='red', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    guides(fill=guide_legend(override.aes=list(size=4))) +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+```
+
+This plot shows the ratio of #Nhoods to sample size on the x-axis with the proportion of discoveries on the y-axis; the purple line is the FDR (1%) and 
+the purple line is the expected proportion of discoveries (~0.2). Points are coloured by $k$. We don't see the same relation between $k$ and the 
+proportion of discoveries as we do for the discrete clusters. The relation between $k$ and Nhood size/N is much more striking though, i.e. as $k$ 
+grows the ratio gets smaller and smaller, but apparently with no obvious cost to the false positive rate...
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+graph.stats$NCells <- as.numeric(as.character(graph.stats$NCells))
+graph.stats$Av.NhoodRatio <- graph.stats$Mean.Nhood.Size/graph.stats$NCells
+
+graph.stats$NCells <- ordered(graph.stats$NCells,
+                         levels=c(unique(as.numeric(graph.stats$NCells))[order(unique(as.numeric(graph.stats$NCells)), decreasing=FALSE)]))
+graph.melt <- melt(graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+I've added the ratio of (mean) Nhood size/N cells to the graph stats. This value seems to decline fairly rapidly across sample sizes, I guess as the 
+mean nhood size grows more slowly than the sample size. This is the same as for the simple discrete case, which is comforting that the exact nature of 
+the data, i.e. clusters vs. linear trajectory doesn't affect this relationship.
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+     geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/5, colour='red', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    guides(fill=guide_legend(override.aes=list(size=3))) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    NULL
+```
+
+This relationship between mean neighbourhood size, $k$ and the proportion of DA neighbourhoods is also similar as for the discrete case (modulo the 
+apparent lack of false discoveries). The apparent false positives seem to accumulate in the moderate-sized datasets. It does generally demonstrate the 
+robustness of the approach, i.e. the type I error rate is well controlled across a range of $k$ values.
+
+## Conclusion
+
+The spatial FDR using the `k-distance` controls the false discoveries a little too well in these simulations - it is conservative for linear 
+trajectories. Does the robust dispersion estimation make any difference?
+
+# Simulation 2: a single linear trajectory - DA neighbourhoods in group 1 only without robust dispersion estimation.
+
+This uses the same data above, but witht `robust=FALSE` for the dispersion estimation in `edgeR`.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Trajectory")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="M1DA")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Trajectory")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="M1DA")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+traj.graph.stats <- do.call(rbind.data.frame, kstat.list)
+traj.graph.stats$K <- ordered(traj.graph.stats$K,
+                         levels=c(unique(as.numeric(traj.graph.stats$K))[order(unique(as.numeric(traj.graph.stats$K)), decreasing=FALSE)]))
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+
+traj.res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    traj.res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+traj.res.df <- do.call(rbind.data.frame, traj.res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(traj.res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(traj.res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$k <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1]))))
+totdr.df$N <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+Again, this looks almost identical.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/5, colour='red', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    guides(fill=guide_legend(override.aes=list(size=3))) +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+
+ggsave("~/Dropbox/Milo/simulations/Trajectory_sim-noRobust_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+The pattern is qualitatively the same again - where the type I error inflation seem to be in the datasets of ~2000 cells.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+graph.melt <- melt(traj.graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+The average neighbourhood size plateaus here, which increases with $k$, but not sample size as before. In general these patterns do not seem to be 
+undully influenced by the presence of DA neighbourhoods, which is encouraging. What then is the relation with the discovery rate?
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/5, colour='red', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    guides(fill=guide_legend(override.aes=list(size=4))) +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0))
+```
+
+Again, curiously the elevated type I errors seems to be in the samples of ~2000 cells.
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+     geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_hline(yintercept=1/5, colour='red', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    guides(fill=guide_legend(override.aes=list(size=3))) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    NULL
+```
+
+This relationship between mean neighbourhood size, $k$ and the proportion of DA neighbourhoods is also similar as for the discrete case (modulo the 
+apparent lack of false discoveries). The apparent false positives seem to accumulate in the moderate-sized datasets. It does generally demonstrate the 
+robustness of the approach, i.e. the type I error rate is well controlled across a range of $k$ values.
+
+## Conclusion
+
+The robust dispersion estimation makes very little difference here as far as I can tell. How about some real-world data?
+
+# Simulation 3: ageing mouse thymus - shuffled age labels to generate no DA neighbourhoods
+
+I have generated a series of data sets using the ageing mouse thymus data set as a basis. Specifically I have down-sampled the data in different 
+proportions from 10% to 100%, and shuffled the age laebls to genera te a null data set. I expect that there will be _no_ DA neighbourhoods, so anything 
+that is DA is a false-positive. The only limitation of this data set is it's size, i.e the max is ~2,300 cells. Hopefully, this will still yield some 
+meaningful results.
+
+```{r}
+thymus.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+thymus.files <- thymus.files[grepl(thymus.files, pattern="NODA")]
+thymus.files <- thymus.files[grepl(thymus.files, pattern="Thymus")]
+thymus.data <- lapply(thymus.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+thymus.data1 <- thymus.data[[1]]
+sim1.umap <- umap(reducedDim(thymus.data1$mylo, "PCA")[, c(1:30)],
+                  n_components=2,
+                  n_neighbors=21, metric='euclidean',
+                  init='random', min_dist=0.1)
+
+meta.df <- cbind(thymus.data1$meta, sim1.umap$layout)
+colnames(meta.df) <- c(colnames(thymus.data1$meta), "UMAP1", "UMAP2")
+# add the label annotation
+meta.df$Cluster <- "Unknown"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 2] <- "Intertypical TEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 9] <- "Perinatal cTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 3] <- "Mature cTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 7] <- "Mature mTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 1] <- "Post-Aire mTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 5] <- "Tuft-like mTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 6] <- "Proliferating TEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 8] <- "nTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 10] <- "sTEC"
+
+
+ggplot(meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Cluster)) +
+  theme_clean() +
+  scale_colour_npg() +
+  guides(colour=guide_legend(override.aes=list(size=3), title="Cluster"))
+```
+
+This a UMAP of the 10% down-sampled data set (~200 cells). I'll loop over the different values of $k$ and each data set to generate the various 
+statistics.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Thymus")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="NODA")]
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Thymus")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="NODA")]
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+traj.graph.stats <- do.call(rbind.data.frame, kstat.list)
+traj.graph.stats$K <- ordered(traj.graph.stats$K,
+                         levels=c(unique(as.numeric(traj.graph.stats$K))[order(unique(as.numeric(traj.graph.stats$K)), decreasing=FALSE)]))
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+
+traj.res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    traj.res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+traj.res.df <- do.call(rbind.data.frame, traj.res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(traj.res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(traj.res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$N <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2]))))
+totdr.df$k <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=log10(Nhood.Size))) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This shows how the neighbourhood size is a function of both $k$ and total sample size. Because of the small differences in sample size the gradient 
+of differences is quite weak.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+The heatmap shows the size of the total data set (#Cells) and the value of $k$ used to construct the graph and neighbourhoods. The tiles are coloured by 
+the proportion of neighbourhoods that DA at a 1 %FDR. I deliberately shuffled the age labels to create null data sets - clearly it worked too well!
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21, size=4) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+
+ggsave("~/Dropbox/Milo/simulations/Thymus_shuffled_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+As there are no DA neighbourhoods in this scenario, I can only conclude that we have controlled both the FDR and FWER, i.e. there are _no_ false 
+positives even if we expect at least 1%. This might also be a matter of statistical power, as we might expect larger sample sizes to give more DA 
+neighbourhoods (this would be mitigated by more replicates). In this example we have 5 replicates, which might be sufficient to help reduce the sampling 
+variance in our data (or we are just underpowered!!).
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21, size=4) +
+    theme_bw() +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+```
+
+This plot shows the ratio of #Nhoods to sample size on the x-axis with the proportion of discoveries on the y-axis; the pattern is the same 
+as above.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+traj.graph.stats$NCells <- as.numeric(as.character(traj.graph.stats$NCells))
+traj.graph.stats$Av.NhoodRatio <- traj.graph.stats$Mean.Nhood.Size/traj.graph.stats$NCells
+
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+graph.melt <- melt(traj.graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+The edge connectivity and node degree are pretty constant within a value of $k$, and even the variance of the node degree peaks very quickly, which 
+suggests that the graphs don't become too much more variable with sample size, but only $k$. The same goes for both the mean and neighbourhood size 
+variance, which peak very early in these data. the ratio of \#Nhoods:sample size follows the same pattern as the simulations, which is encouraging that 
+this might actually be a generalisable and useful statistic to use.
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, traj.graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21, size=3) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    expand_limits(y=c(0, 1)) +
+    theme_bw() +
+    NULL
+```
+
+Mean neighbourhood size still scales as expected with $k$. Is this conservatism due to the number of replicates (5), or something else, like the 
+refined sampling? First I'll try without the robust dispersion estimation, then I'll turn off the latter and see what difference that makes.
+
+# Simulation 3: ageing mouse thymus - shuffled age labels to generate no DA neighbourhoods, edgeR `robust=FALSE`.
+
+The input data is the same as above, on the DA testing is different.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Thymus")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="NODA")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Thymus")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="NODA")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+traj.graph.stats <- do.call(rbind.data.frame, kstat.list)
+traj.graph.stats$K <- ordered(traj.graph.stats$K,
+                         levels=c(unique(as.numeric(traj.graph.stats$K))[order(unique(as.numeric(traj.graph.stats$K)), decreasing=FALSE)]))
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+
+traj.res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    traj.res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+traj.res.df <- do.call(rbind.data.frame, traj.res.list)
+```
+
+The judgement criteria we are using is the false discovery control. Essentially, amongst the neighbourhoods where there should be nothing DA, how many 
+do we call DA erroneously?
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(traj.res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(traj.res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$N <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2]))))
+totdr.df$k <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=log10(Nhood.Size))) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This shows how the neighbourhood size is a function of both $k$ and total sample size. Because of the small differences in sample size the gradient 
+of differences is quite weak.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+Still no DA neighbourhoods with the shuffled data. The robust dispersion estimation _doesn't_ make that much difference.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    guides(fill=guide_legend(override.aes=list(size=4))) +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+
+ggsave("~/Dropbox/Milo/simulations/Thymus_shuffled-noRobust_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+As there are no DA neighbourhoods in this scenario, I can only conclude that we have controlled both the FDR and FWER, i.e. there are _no_ false 
+positives even if we expect at least 1%. This might also be a matter of statistical power, as we might expect larger sample sizes to give more DA 
+neighbourhoods (this would be mitigated by more replicates). In this example we have 5 replicates, which might be sufficient to help reduce the sampling 
+variance in our data (or we are just underpowered!!).
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    guides(fill=guide_legend(override.aes=list(size=4))) +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+```
+
+This plot shows the ratio of #Nhoods to sample size on the x-axis with the proportion of discoveries on the y-axis; the pattern is the same 
+as above.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+traj.graph.stats$NCells <- as.numeric(as.character(traj.graph.stats$NCells))
+traj.graph.stats$Av.NhoodRatio <- traj.graph.stats$Mean.Nhood.Size/traj.graph.stats$NCells
+
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+graph.melt <- melt(traj.graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+The edge connectivity and node degree are pretty constant within a value of $k$, and even the variance of the node degree peaks very quickly, which 
+suggests that the graphs don't become too much more variable with sample size, but only $k$. The same goes for both the mean and neighbourhood size 
+variance, which peak very early in these data. the ratio of \#Nhoods:sample size follows the same pattern as the simulations, which is encouraging that 
+this might actually be a generalisable and useful statistic to use.
+
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, traj.graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    guides(fill=guide_legend(override.aes=list(size=4))) +
+    expand_limits(y=c(0, 1)) +
+    theme_bw() +
+    NULL
+```
+
+As the robust estimation makes little to no difference for the shuffled data - what about turning off the refined sampling? My intuition would be that 
+the extra multiple-testing burden would actually lead to _fewer_ DA neighbourhoods. Does the robust estimation make a difference when there are genuinely 
+DA neighbourhoods?
+
+# Simulation 3: ageing mouse thymus - true age labels, robust dispersion estimation.
+
+This uses the down-sampled data, but preserves the age labels.
+
+```{r}
+thymus.files <- list.files("~/Dropbox/Milo/simulations/data/", pattern="RDS")
+thymus.files <- thymus.files[grepl(thymus.files, pattern="RealDA")]
+thymus.files <- thymus.files[grepl(thymus.files, pattern="Thymus")]
+thymus.data <- lapply(thymus.files, FUN=function(RX) readRDS(paste0("~/Dropbox/Milo/simulations/data/", RX)))
+thymus.data1 <- thymus.data[[1]]
+sim1.umap <- umap(reducedDim(thymus.data1$mylo, "PCA")[, c(1:30)],
+                  n_components=2,
+                  n_neighbors=21, metric='euclidean',
+                  init='random', min_dist=0.1)
+
+meta.df <- cbind(thymus.data1$meta, sim1.umap$layout)
+colnames(meta.df) <- c(colnames(thymus.data1$meta), "UMAP1", "UMAP2")
+# add the label annotation
+meta.df$Cluster <- "Unknown"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 2] <- "Intertypical TEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 9] <- "Perinatal cTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 3] <- "Mature cTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 7] <- "Mature mTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 1] <- "Post-Aire mTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 5] <- "Tuft-like mTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 6] <- "Proliferating TEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 8] <- "nTEC"
+meta.df$Cluster[meta.df$TFIDF.Cluster == 10] <- "sTEC"
+
+
+ggplot(meta.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point(aes(colour=Cluster)) +
+  theme_clean() +
+  scale_colour_npg() +
+  guides(colour=guide_legend(override.aes=list(size=3), title="Cluster"))
+```
+
+This a UMAP of the 10% down-sampled data set (~200 cells). I'll loop over the different values of $k$ and each data set to generate the various 
+statistics.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Thymus")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="RealDA")]
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Thymus")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="RealDA")]
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+traj.graph.stats <- do.call(rbind.data.frame, kstat.list)
+traj.graph.stats$K <- ordered(traj.graph.stats$K,
+                         levels=c(unique(as.numeric(traj.graph.stats$K))[order(unique(as.numeric(traj.graph.stats$K)), decreasing=FALSE)]))
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+
+traj.res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    traj.res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+traj.res.df <- do.call(rbind.data.frame, traj.res.list)
+```
+
+The judgement criteria we are using is the false discovery control.
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(traj.res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(traj.res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$N <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2]))))
+totdr.df$k <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=log10(Nhood.Size))) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This shows how the neighbourhood size is a function of both $k$ and total sample size. Because of the small differences in sample size the gradient 
+of differences is quite weak.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+The heatmap shows the size of the total data set (#Cells) and the value of $k$ used to construct the graph and neighbourhoods. I don't have a strict 
+expectation for the exact proportion of DA neighbourhoods - but it should be less than 100. This demonstrates that very small values of $k$ have quite low 
+power it even looks like the optimal (in terms of number of discoveries) is around the $50 \leq k \leq 75$ range.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    theme_bw() +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+
+ggsave("~/Dropbox/Milo/simulations/Thymus_real-Robust_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+The proportion of discoveries increases with the total number of neighbourhoods, but it isn't strictly driven by any particular value of $k$.
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    theme_bw() +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+```
+
+This plot shows the ratio of #Nhoods to sample size on the x-axis with the proportion of discoveries on the y-axis; the pattern is the same 
+as above. From this it looks like the peak is k~50.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.95, fig.width=9.95}
+traj.graph.stats$NCells <- as.numeric(as.character(traj.graph.stats$NCells))
+traj.graph.stats$Av.NhoodRatio <- traj.graph.stats$Mean.Nhood.Size/traj.graph.stats$NCells
+
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+graph.melt <- melt(traj.graph.stats, id.vars=c("NCells", "K"))
+
+ggplot(graph.melt, aes(x=NCells, y=value, fill=K)) +
+    geom_line(aes(colour=K, group=K)) +
+    geom_point(shape=21, size=3) +
+    facet_wrap(~variable, scales="free_y")
+```
+
+The edge connectivity and node degree are pretty constant within a value of $k$, and even the variance of the node degree peaks very quickly, which 
+suggests that the graphs don't become too much more variable with sample size, but only $k$. The same goes for both the mean and neighbourhood size 
+variance, which peak very early in these data. the ratio of \#Nhoods:sample size follows the same pattern as the simulations, which is encouraging that 
+this might actually be a generalisable and useful statistic to use.
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, traj.graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    expand_limits(y=c(0, 1)) +
+    theme_bw() +
+    NULL
+```
+
+Mean neighbourhood size still scales as expected with $k$. I would say that this demonstrates how robust the DA testing is across a wide range of $k$ 
+values. Does the robust dispersion estimation change this?
+
+# Simulation 3: ageing mouse thymus - true age labels, no robust dispersion estimation.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Thymus")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="RealDA")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="noRobust")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Thymus")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="RealDA")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="noRobust")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+traj.graph.stats <- do.call(rbind.data.frame, kstat.list)
+traj.graph.stats$K <- ordered(traj.graph.stats$K,
+                         levels=c(unique(as.numeric(traj.graph.stats$K))[order(unique(as.numeric(traj.graph.stats$K)), decreasing=FALSE)]))
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+
+traj.res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    traj.res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+traj.res.df <- do.call(rbind.data.frame, traj.res.list)
+```
+
+The judgement criteria we are using is the false discovery control.
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(traj.res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(traj.res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$N <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2]))))
+totdr.df$k <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=log10(Nhood.Size))) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This shows how the neighbourhood size is a function of both $k$ and total sample size. Because of the small differences in sample size the gradient 
+of differences is quite weak.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This also looks qualitatively the same as above.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+
+ggsave("~/Dropbox/Milo/simulations/Thymus_real-noRobust_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+I'd say this is again almost identical to with the robust dispersion estimation. Does this mean that n=5 replicates is enough to get a reasonably accurate 
+estimate?
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    theme_bw() +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+```
+
+This plot shows the ratio of #Nhoods to sample size on the x-axis with the proportion of discoveries on the y-axis; the pattern is the same 
+as above.
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, traj.graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    expand_limits(y=c(0, 1)) +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    theme_bw() +
+    NULL
+```
+
+Mean neighbourhood size still scales as expected with $k$. Is this conservatism due to the number of replicates (5), or something else, like the 
+refined sampling? Now let's see if turning off the robust dispersion estimation makes any difference.
+
+## Conclusion
+
+The robust dispersion estimation makes little to no difference to the qualitative results. It also looks like the DA testing is quite robust to the 
+different values of $k$. I'd like to test the impact of the refined sampling on these results, and whether using an out-of-the box negative binomial 
+GLM is useful for properly investigating the type I error control.
+
+# Simulation 3: ageing mouse thymus - true age labels, no refined sampling
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+k.stats.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="Graph")
+k.stats.files <- k.stats.files[!grepl(k.stats.files, pattern="30000")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="Thymus")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="RealDA")]
+k.stats.files <- k.stats.files[grepl(k.stats.files, pattern="noRefined")]
+
+da.res.files <- list.files("~/Dropbox/Milo/simulations/results/", pattern="DAres")
+da.res.files <- da.res.files[!grepl(da.res.files, pattern="30000")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="Thymus")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="RealDA")]
+da.res.files <- da.res.files[grepl(da.res.files, pattern="noRefined")]
+
+kstat.list <- list()
+for(x in seq_along(k.stats.files)){
+    x.k.stat <- read.table(paste0("~/Dropbox/Milo/simulations/results/", k.stats.files[x]),
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    # drop Vertex connectivity
+    x.k.stat <- x.k.stat[, !grepl(colnames(x.k.stat), pattern="Vertex")]
+    x.k <- x.k.stat$K
+    x.n <- x.k.stat$NCells
+    
+    kstat.list[[paste0(x.k, x.n)]] <- x.k.stat
+}
+
+traj.graph.stats <- do.call(rbind.data.frame, kstat.list)
+traj.graph.stats$K <- ordered(traj.graph.stats$K,
+                         levels=c(unique(as.numeric(traj.graph.stats$K))[order(unique(as.numeric(traj.graph.stats$K)), decreasing=FALSE)]))
+traj.graph.stats$NCells <- ordered(traj.graph.stats$NCells,
+                         levels=c(unique(as.numeric(traj.graph.stats$NCells))[order(unique(as.numeric(traj.graph.stats$NCells)), decreasing=FALSE)]))
+
+traj.res.list <- list()
+for(j in seq_along(da.res.files)){
+    j.res <- read.table(paste0("~/Dropbox/Milo/simulations/results/", da.res.files[j]),
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    j.k <- unique(j.res$k)
+    j.n <- unique(j.res$N)
+    
+    traj.res.list[[paste0(j.k, "_", j.n)]] <- j.res
+}
+
+traj.res.df <- do.call(rbind.data.frame, traj.res.list)
+```
+
+The judgement criteria we are using is the false discovery control.
+
+```{r, warning=FALSE, message=FALSE}
+total.dr <- lapply(traj.res.list, FUN=function(RX) sum(RX$Diff != 0)/nrow(RX))
+nhood.size <- lapply(traj.res.list, FUN=function(RX) nrow(RX))
+totdr.df <- data.frame("Run"=names(total.dr), "Prop.Disc"=unlist(total.dr), "Nhood.Size"=unlist(nhood.size))
+totdr.df$Run <- as.character(totdr.df$Run)
+totdr.df$N <- as.numeric(unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[2]))))
+totdr.df$k <- unlist(lapply(strsplit(totdr.df$Run, split="_", fixed=TRUE), FUN=function(P) paste0(P[1])))
+
+totdr.df$k <- ordered(totdr.df$k,
+                      levels=c(unique(as.numeric(totdr.df$k))[order(unique(as.numeric(totdr.df$k)), decreasing=FALSE)]))
+totdr.df$N <- ordered(totdr.df$N,
+                      levels=c(unique(as.numeric(totdr.df$N))[order(unique(as.numeric(totdr.df$N)), decreasing=FALSE)]))
+
+ggplot(totdr.df, aes(x=N, y=k, fill=log10(Nhood.Size))) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This shows how the neighbourhood size is a function of both $k$ and total sample size. Because of the small differences in sample size the gradient 
+of differences is quite weak. This also demonstrates how the neighbourhood size doesn't saturate without the refined sampling - it's just a function of the 
+size of the dataset.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=N, y=k, fill=Prop.Disc)) +
+    geom_tile() +
+    theme_bw() +
+    labs(x="#Cells", y="k")
+```
+
+This also looks qualitatively the same as above, except with fewer DA neighbourhoods - I expect because of the extra multiple testing burden.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(totdr.df, aes(x=Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    theme_bw() +
+    labs(x="#Neighbourhoods", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+
+ggsave("~/Dropbox/Milo/simulations/Thymus_real-noRefined_DAvsNhoods.png",
+       height=4.15, width=6.25, dpi=90)
+```
+
+This shows the scaling is dependent on the sample size and $k$ without the refined sampling.
+
+```{r, warning=FALSE, message=FALSE}
+totdr.df$N <- as.numeric(as.character(totdr.df$N))
+ggplot(totdr.df, aes(x=Nhood.Size/N, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    theme_bw() +
+    labs(x="#Nhoods/Sample Size", y="Proprortion of DA Nhoods") +
+    expand_limits(y=c(0, 1))
+```
+
+This plot shows the ratio of #Nhoods to sample size on the x-axis with the proportion of discoveries on the y-axis; the value _should_ be proportional to 
+the proportion of graph vertices to sample, which in this case was 0.5.
+
+```{r, warning=FALSE, message=FALSE}
+merge.stats <- merge(totdr.df, traj.graph.stats, by.x=c('N', 'k'), by.y=c('NCells', 'K'))
+merge.stats$N <- ordered(merge.stats$N,
+                         levels=c(unique(as.numeric(merge.stats$N))[order(unique(as.numeric(merge.stats$N)), decreasing=FALSE)]))
+
+ggplot(merge.stats, aes(x=Mean.Nhood.Size, y=Prop.Disc, fill=k, size=N)) +
+    geom_hline(yintercept=0.01, colour='purple', lty=2) +
+    geom_point(shape=21) +
+    labs(x="Mean neighbourhood size", y="Proportion of DA neighbourhoods") +
+    expand_limits(y=c(0, 1)) +
+    guides(fill=guide_legend(override.aes = list(size=3))) +
+    theme_bw() +
+    NULL
+```
+
+Mean neighbourhood size still scales as expected with $k$. Is this conservatism due to the number of replicates (5), or something else, like the 
+refined sampling? Now let's see if turning off the robust dispersion estimation makes any difference.
+
+## Conclusion
+
+The effect of the refined sampling is it seems primarily to reduce the multiple testing burden and therefore increase the sensitivity of the method.
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Simulation 4: Complex bifurcating trajectories - no DA neighbourhoods
+
+
+
+
+
+
+
+
+

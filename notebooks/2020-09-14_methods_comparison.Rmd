@@ -1,0 +1,532 @@
+---
+title: "Milo: comparison to other methods"
+output: html_notebook
+---
+
+# Introduction
+
+A key test of `Milo` is how it compare to other other methods. For this we need a ground truth that is vaguely realistic. I will use the linear 
+trajectory simulation with 2000 cells where a single middle group of cells are differentially abundant between conditions.  The methods against which 
+I will make this comparison are:
+
+* Cluster-based: Louvain and Walktrap
+* Cydar
+* DA-seq
+
+To compare methods I will calculate the ratio of cells that fall into true positive DA regions/clusters/neighbourhoods to false positive DA 
+regions/clusters/neighbourhoods.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+### Set up a mock data set using simulated data
+library(ggplot2)
+library(igraph)
+library(ggthemes)
+library(ggsci)
+library(umap)
+library(reshape2)
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(igraph)
+library(miloR)
+library(cowplot)
+library(RColorBrewer)
+library(pheatmap)
+library(DAseq)
+library(cydar)
+```
+
+I'll use the simple linear trajectory data set for this with ~2000 cells and genuinely DA regions.
+
+```{r, warning=FALSE, message=FALSE}
+n.dim <- 15
+k <- 10
+sim.data <- readRDS("~/Dropbox/Milo/simulations/data/Trajectory_Ncells2000_3M1DARep100_simpleSim.RDS")
+sim.mylo <- sim.data$mylo
+sim.meta <- sim.data$meta
+sim.mylo <- buildGraph(sim.mylo, k=k, d=n.dim, seed=42)
+sim.mylo
+```
+
+I'll create an embedding that can be used across all comparisons.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=8.25}
+set.seed(42)
+sim.graph <- miloR::graph(sim.mylo)
+sim.fr_layout <- layout_with_fr(sim.graph)
+
+sim.fr.df <- as.data.frame(sim.fr_layout)
+sim.fr.df$cell_id <- colnames(sim.mylo)
+sim.fr.df <- merge(sim.fr.df, sim.meta, by='cell_id')
+rownames(sim.fr.df) <- sim.fr.df$cell_id
+
+ggplot(sim.fr.df, aes(x=V1, y=V2)) +
+    geom_point(aes(fill=Condition), size=3, shape=21) +
+    scale_fill_manual(values=c("#662483", "white")) +
+    theme_cowplot() +
+    theme(axis.line=element_blank(), axis.ticks=element_blank(),
+          axis.text=element_blank(), axis.title=element_blank()) +
+    #facet_wrap(~Condition) +
+    guides(fill=guide_legend(title="Condition", override.aes=list(size=3)),
+           colour=FALSE, shape=FALSE, size=FALSE, alpha=FALSE) +
+    #facet_wrap(~Condition, nrow=1) +
+    NULL
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_GroundTruth.png",
+       height=4.15, width=8.25, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_GroundTruth.pdf",
+       height=4.15, width=8.25, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.15, fig.width=3.15}
+ggplot(sim.fr.df, aes(x=group_id, fill=Condition)) +
+    geom_bar(position='dodge', colour='black') +
+    scale_fill_manual(values=c("#662483", "white")) +
+    theme_cowplot() +
+    labs(x="Cell Group", y="#Cells") +
+    NULL
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_simulation_bar.pdf",
+       height=2.15, width=3.15, useDingbats=FALSE)
+```
+
+
+
+# Milo
+
+```{r, warning=FALSE}
+set.seed(42)
+sim.mylo <- buildGraph(sim.mylo, k=k, d=n.dim, seed=42)
+test.meta <- data.frame("Condition"=c(rep("A", 3), rep("B", 3)),
+                        "Replicate"=rep(c("R1", "R2", "R3"), 2))
+test.meta$Sample <- paste(test.meta$Condition, test.meta$Replicate, sep="_")
+rownames(test.meta) <- test.meta$Sample
+
+sim.mylo <- makeNhoods(sim.mylo, k=k, d=n.dim, prop=0.3, refined=TRUE)
+sim.mylo <- miloR::countCells(sim.mylo, samples="Sample", meta.data=as.data.frame(sim.meta))
+mylo.res <- testNhoods(sim.mylo, design=~Condition, design.df=test.meta[colnames(nhoodCounts(sim.mylo)), ])
+mylo.res$Diff <- sign(mylo.res$logFC)
+mylo.res$Diff[mylo.res$SpatialFDR > 0.1] <- 0
+table(mylo.res$Diff)
+```
+
+# Cydar
+
+`Cydar` requires the user to define a space in which to construct hyperspheres of a specific radius $r$. I will use the same number of PCs as was 
+used to construct the kNN-graph with `Milo`; $r$ will have to be set by some other means.
+
+```{r, warning=FALSE}
+sim.list <- list()
+for(x in seq_along(unique(sim.meta$Replicate))){
+  plate <- unique(sim.meta$Replicate)[x]
+  plate.red <- sim.meta[sim.meta$Replicate == plate, ]
+  plate.ages <- unique(plate.red$Condition)
+  for(i in seq_along(plate.ages)){
+    age <- unique(plate.ages)[i]
+    age.red <- reducedDim(sim.mylo)[sim.meta$Condition == age &
+                                        sim.meta$Replicate %in% plate, ]
+    
+    age.mat <- as(age.red[, 1:n.dim], "matrix")
+    sim.list[[paste(age, paste0(plate), sep=".")]] <- age.mat
+  }
+}
+
+sim.cydar <- prepareCellData(sim.list)
+```
+
+The key paramater for `Cydar` is the radius of the hyperspheres - this can be selected heuristically by plotting the distribution of distances for 
+increasing values of $r$.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+sim.dist <- neighborDistances(sim.cydar, neighbors=75, as.tol=TRUE)
+boxplot(sim.dist)
+```
+
+This looks like the distances plateau after ~1.5 We can then count cells in hyperspheres and perform DA testing using `edgeR`.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+sim.cydar <- cydar::countCells(sim.cydar, tol=2.0, filter=0, downsample=3)
+message(paste0("Created ", nrow(sim.cydar), " hyperspheres"))
+
+# do DA testing with edgeR
+sim.dge <- DGEList(assay(sim.cydar), lib.size=sim.cydar$totals)
+
+# filter low abundance hyperspheres
+keep <- aveLogCPM(sim.dge) >= aveLogCPM(1, mean(sim.cydar$totals))
+sim.cydar <- sim.cydar[keep,]
+sim.dge <- sim.dge[keep,]
+
+sim.design <- model.matrix(~Condition, data=test.meta[gsub(colnames(sim.cydar), pattern="\\.", replacement="_"), ])
+sim.dge <- estimateDisp(sim.dge, sim.design)
+sim.fit <- glmQLFit(sim.dge, sim.design)
+sim.res <- glmQLFTest(sim.fit, coef=2)
+
+# control the spatial FDR
+cydar.res <- sim.res$table
+cydar.res$SpatialFDR <- spatialFDR(intensities(sim.cydar), sim.res$table$PValue)
+is.sig <- cydar.res$SpatialFDR <= 0.1
+summary(is.sig)
+```
+
+`Cydar` finds 363 DA hyperspheres in this example.
+
+# DAseq
+
+`DAseq` requires a range of k-values to be input, I'll vary from 5 up to 50. __NB__: Should this actually be a set of values that are more realistic 
+for the method?
+
+```{r, warning=FALSE}
+# k.vec <- c(5, 7, 10, 12, 15, 20, 25, 30, 35, 40, 45, 50)
+k.vec <- c(5, 500, 50)
+sim.daseq <- getDAcells(X=reducedDim(sim.mylo)[, 1:n.dim],
+                        cell.labels=sim.meta$cell_id,
+                        labels.1=sim.meta$cell_id[sim.meta$Condition %in% c("A")],
+                        labels.2=sim.meta$cell_id[sim.meta$Condition %in% c("B")],
+                        k.vector=k.vec,
+                        size=1,
+                        plot.embedding=as.matrix(sim.fr.df[, c("V1", "V2")]))
+```
+
+Let's have a look at these regions.
+
+```{r, warning=FALSE}
+str(sim.daseq[1:4])
+```
+
+```{r, warning=FALSE, fig.height=4.15, fig.width=5.15}
+sim.daseq$pred.plot
+```
+
+This plot shows what `DAseq` predicts as being as the DA cells, i.e. different between conditions A and B. By default the DA cells are selected in 
+the top and bottom 5% of quantiles - I'll keep this as it will select the best 10% overall.
+
+```{r, warning=FALSE, fig.height=4.15, fig.width=5.15}
+sim.daseq$da.cells.plot
+```
+
+These top 10% of DA cells are specifically highlighted here. The DA regions are identified by grouping the coherently DA cells together by `DAseq`.
+
+```{r, warning=FALSE}
+sim.da_regions <- getDAregion(X=reducedDim(sim.mylo)[, 1:n.dim],
+                              da.cells=sim.daseq,
+                              min.cell=5,
+                              cell.labels=sim.meta$cell_id,
+                              labels.1=sim.meta$cell_id[sim.meta$Condition %in% c("A")],
+                              labels.2=sim.meta$cell_id[sim.meta$Condition %in% c("B")],
+                              size=1,
+                              resolution=0.1, plot.embedding=as.matrix(sim.fr.df[, c("V1", "V2")]))
+
+str(sim.da_regions[1:2])
+```
+
+`DAseq` has clustered the DA cells into `r length(unique(sim.da_regions$da.region.label))` DA regions.
+
+```{r, fig.height=4.15, fig.width=5.15}
+sim.da_regions$da.region.plot
+```
+
+# Clustering - Louvain & Walktrap
+
+```{r}
+walktrap.clust <- cluster_walktrap(sim.graph, steps=3, membership=TRUE)
+walktrap.clust.ids <- membership(walktrap.clust)
+
+louvain.clust <- cluster_louvain(sim.graph)
+louvain.clust.ids <- membership(louvain.clust)
+
+sim.clust.df <- data.frame("cell_id"=colnames(sim.mylo), "Walktrap.Clust"=as.character(walktrap.clust.ids),
+                           "Louvain.Clust"=as.character(louvain.clust.ids))
+
+sim.clust.merge <- merge(sim.fr.df, sim.clust.df, by='cell_id')
+sim.clust.merge$Sample <- paste(sim.fr.df$Condition, sim.fr.df$Replicate, sep="_")
+```
+
+## Louvain
+
+```{r, warning=FALSE}
+louvain.model <- model.matrix(~Condition, data=test.meta)
+louvain.count <- as.matrix(table(sim.clust.merge$Louvain.Clust, sim.clust.merge$Sample))
+louvain.dge <- DGEList(counts=louvain.count, lib.size=log(colSums(louvain.count)))
+louvain.dge <- estimateDisp(louvain.dge, louvain.model)
+louvain.fit <- glmQLFit(louvain.dge, louvain.model, robust=TRUE)
+louvain.res <- as.data.frame(topTags(glmQLFTest(louvain.fit, coef=2), sort.by='none', n=Inf))
+table(louvain.res$FDR <= 0.1)
+```
+
+## Walktrap
+
+```{r, warning=FALSE}
+walktrap.model <- model.matrix(~Condition, data=test.meta)
+walktrap.count <- as.matrix(table(sim.clust.merge$Walktrap.Clust, sim.clust.merge$Sample))
+walktrap.dge <- DGEList(counts=walktrap.count, lib.size=log(colSums(walktrap.count)))
+walktrap.dge <- estimateDisp(walktrap.dge, walktrap.model)
+walktrap.fit <- glmQLFit(walktrap.dge, walktrap.model, robust=TRUE)
+walktrap.res <- as.data.frame(topTags(glmQLFTest(walktrap.fit, coef=2), sort.by='none', n=Inf))
+table(walktrap.res$FDR <= 0.1)
+```
+
+
+# Comparing methods
+
+As stated above, I will assess the performance of each methods by calculating the ratio of cells that _should_ be DA against those that are DA but 
+_should not be_.
+
+```{r, warning=FALSE}
+true.da.cells <- sim.meta$cell_id[sim.meta$group_id %in% "M3"]
+milo.da.cells <- unique(sim.meta$cell_id[unique(unlist(nhoods(sim.mylo)[mylo.res$Nhood[mylo.res$Diff != 0]]))])
+cydar.da.cells <- sim.meta$cell_id[unique(unlist(cellAssignments(sim.cydar)[as.numeric(rownames(cydar.res)[cydar.res$SpatialFDR <= 0.1])]))]
+louvain.da.cells <- sim.clust.merge$cell_id[sim.clust.merge$Louvain.Clust %in% rownames(louvain.res)[louvain.res$FDR <= 0.1]]
+walktrap.da.cells <- sim.clust.merge$cell_id[sim.clust.merge$Walktrap.Clust %in% rownames(walktrap.res)[walktrap.res$FDR <= 0.1]]
+daseq.da.cells <- sim.meta$cell_id[sim.da_regions$da.region.label != 0]
+
+da.cell.df <- data.frame("Method"=c("Truth", "Milo", "Cydar", "Louvain", "Walktrap", "DAseq"),
+                         "NCells"=c(length(true.da.cells), length(milo.da.cells), length(cydar.da.cells),
+                                    length(louvain.da.cells), length(walktrap.da.cells), length(daseq.da.cells)))
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(da.cell.df, aes(x=reorder(Method, -NCells), y=NCells)) +
+    geom_bar(stat='identity') +
+    theme_clean() +
+    labs(x="DA Method", y="#DA cells")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_NDAcells.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
+```
+
+From this it does look like `Milo` will call some neighbourhoods that are DA because the ratio of cells in that neighbourhood departs from 50:50. I'm 
+not entirely sure how sensitive `Milo` is to this departure exactly, but it looks like it calls ~80 or so cells DA where they should not be.
+
+```{r, warning=FALSE}
+# calculate true DA cells
+true.neg <- factor(sim.meta$cell_id %in% true.da.cells, levels=c(FALSE, TRUE))
+milo.neg <- factor(sim.meta$cell_id %in% milo.da.cells, levels=c(FALSE, TRUE))
+cydar.neg <- factor(sim.meta$cell_id %in% cydar.da.cells, levels=c(FALSE, TRUE))
+louvain.neg <- factor(sim.meta$cell_id %in% louvain.da.cells, levels=c(FALSE, TRUE))
+walktrap.neg <- factor(sim.meta$cell_id %in% walktrap.da.cells, levels=c(FALSE, TRUE))
+daseq.neg <- factor(sim.meta$cell_id %in% daseq.da.cells, levels=c(FALSE, TRUE))
+
+milo.confuse <- table(true.neg, milo.neg)
+cydar.confuse <- table(true.neg, cydar.neg)
+louvain.confuse <- table(true.neg, louvain.neg)
+walktrap.confuse <- table(true.neg, walktrap.neg)
+daseq.confuse <- table(true.neg, daseq.neg)
+
+milo.confuse.list <- list("TP"=milo.confuse[2, 2], "FP"=milo.confuse[1, 2], "TN"=milo.confuse[1, 1], "FN"=milo.confuse[2, 1])
+cydar.confuse.list <- list("TP"=cydar.confuse[2, 2], "FP"=cydar.confuse[1, 2], "TN"=cydar.confuse[1, 1], "FN"=cydar.confuse[2, 1])
+louvain.confuse.list <- list("TP"=louvain.confuse[2, 2], "FP"=louvain.confuse[1, 2], "TN"=louvain.confuse[1, 1], "FN"=louvain.confuse[2, 1])
+walktrap.confuse.list <- list("TP"=walktrap.confuse[2, 2], "FP"=walktrap.confuse[1, 2], "TN"=walktrap.confuse[1, 1], "FN"=walktrap.confuse[2, 1])
+daseq.confuse.list <- list("TP"=daseq.confuse[2, 2], "FP"=daseq.confuse[1, 2], "TN"=daseq.confuse[1, 1], "FN"=daseq.confuse[2, 1])
+```
+
+
+```{r, warning=FALSE}
+milo.ppv <- milo.confuse.list$TP/(milo.confuse.list$TP + milo.confuse.list$FP)
+cydar.ppv <- cydar.confuse.list$TP/(cydar.confuse.list$TP + cydar.confuse.list$FP)
+louvain.ppv <- louvain.confuse.list$TP/(louvain.confuse.list$TP + louvain.confuse.list$FP)
+walktrap.ppv <- walktrap.confuse.list$TP/(walktrap.confuse.list$TP + walktrap.confuse.list$FP)
+daseq.ppv <- daseq.confuse.list$TP/(daseq.confuse.list$TP + daseq.confuse.list$FP)
+
+milo.fdr <- milo.confuse.list$FP/(milo.confuse.list$TP + milo.confuse.list$FP)
+cydar.fdr <- cydar.confuse.list$FP/(cydar.confuse.list$TP + cydar.confuse.list$FP)
+louvain.fdr <- louvain.confuse.list$FP/(louvain.confuse.list$TP + louvain.confuse.list$FP)
+walktrap.fdr <- walktrap.confuse.list$FP/(walktrap.confuse.list$TP + walktrap.confuse.list$FP)
+daseq.fdr <- daseq.confuse.list$FP/(daseq.confuse.list$TP + daseq.confuse.list$FP)
+
+milo.fnr <- milo.confuse.list$FN/(milo.confuse.list$TP + milo.confuse.list$FN)
+cydar.fnr <- cydar.confuse.list$FN/(cydar.confuse.list$TP + cydar.confuse.list$FN)
+louvain.fnr <- louvain.confuse.list$FN/(louvain.confuse.list$TP + louvain.confuse.list$FN)
+walktrap.fnr <- walktrap.confuse.list$FN/(walktrap.confuse.list$TP + walktrap.confuse.list$FN)
+daseq.fnr <- daseq.confuse.list$FN/(daseq.confuse.list$TP + daseq.confuse.list$FN)
+
+milo.fpr <- milo.confuse.list$FP/(milo.confuse.list$FP + milo.confuse.list$TN)
+cydar.fpr <- cydar.confuse.list$FP/(cydar.confuse.list$FP + cydar.confuse.list$TN)
+louvain.fpr <- louvain.confuse.list$FP/(louvain.confuse.list$FP + louvain.confuse.list$TN)
+walktrap.fpr <- walktrap.confuse.list$FP/(walktrap.confuse.list$FP + walktrap.confuse.list$TN)
+daseq.fpr <- daseq.confuse.list$FP/(daseq.confuse.list$FP + daseq.confuse.list$TN)
+
+milo.for <- milo.confuse.list$FN/(milo.confuse.list$FN + milo.confuse.list$TN)
+cydar.for <- cydar.confuse.list$FN/(cydar.confuse.list$FN + cydar.confuse.list$TN)
+louvain.for <- louvain.confuse.list$FN/(louvain.confuse.list$FN + louvain.confuse.list$TN)
+walktrap.for <- walktrap.confuse.list$FN/(walktrap.confuse.list$FN + walktrap.confuse.list$TN)
+daseq.for <- daseq.confuse.list$FN/(daseq.confuse.list$FN + daseq.confuse.list$TN)
+
+milo.tpr <- milo.confuse.list$TP/(milo.confuse.list$TP + milo.confuse.list$FN)
+cydar.tpr <- cydar.confuse.list$TP/(cydar.confuse.list$TP + cydar.confuse.list$FN)
+louvain.tpr <- louvain.confuse.list$TP/(louvain.confuse.list$TP + louvain.confuse.list$FN)
+walktrap.tpr <- walktrap.confuse.list$TP/(walktrap.confuse.list$TP + walktrap.confuse.list$FN)
+daseq.tpr <- daseq.confuse.list$TP/(daseq.confuse.list$TP + daseq.confuse.list$FN)
+
+milo.tnr <- milo.confuse.list$TN/(milo.confuse.list$TN + milo.confuse.list$FP)
+cydar.tnr <- cydar.confuse.list$TN/(cydar.confuse.list$TN + cydar.confuse.list$FP)
+louvain.tnr <- louvain.confuse.list$TN/(louvain.confuse.list$TN + louvain.confuse.list$FP)
+walktrap.tnr <- walktrap.confuse.list$TN/(walktrap.confuse.list$TN + walktrap.confuse.list$FP)
+daseq.tnr <- daseq.confuse.list$TN/(daseq.confuse.list$TN + daseq.confuse.list$FP)
+
+milo.npv <- milo.confuse.list$TN/(milo.confuse.list$TN + milo.confuse.list$FN)
+cydar.npv <- cydar.confuse.list$TN/(cydar.confuse.list$TN + cydar.confuse.list$FN)
+louvain.npv <- louvain.confuse.list$TN/(louvain.confuse.list$TN + louvain.confuse.list$FN)
+walktrap.npv <- walktrap.confuse.list$TN/(walktrap.confuse.list$TN + walktrap.confuse.list$FN)
+daseq.npv <- daseq.confuse.list$TN/(daseq.confuse.list$TN + daseq.confuse.list$FN)
+
+da.fdr.df <- data.frame("Method"=c("Milo", "Cydar", "Louvain", "Walktrap", "DAseq"),
+                        "PPV"=c(milo.ppv, cydar.ppv, louvain.ppv, walktrap.ppv, daseq.ppv),
+                        "NPV"=c(milo.npv, cydar.npv, louvain.npv, walktrap.npv, daseq.npv),
+                        "FDR"=c(milo.fdr, cydar.fdr, louvain.fdr, walktrap.fdr, daseq.fdr),
+                        "FPR"=c(milo.fpr, cydar.fpr, louvain.fpr, walktrap.fpr, daseq.fpr),
+                        "FNR"=c(milo.fnr, cydar.fnr, louvain.fnr, walktrap.fnr, daseq.fnr),
+                        "FOR"=c(milo.for, cydar.for, louvain.for, walktrap.for, daseq.for),
+                        "TPR"=c(milo.tpr, cydar.tpr, louvain.tpr, walktrap.tpr, daseq.tpr),
+                        "TNR"=c(milo.tnr, cydar.tnr, louvain.tnr, walktrap.tnr, daseq.tnr))
+da.fdr.df$MCC <- sqrt(da.fdr.df$PPV * da.fdr.df$TPR * da.fdr.df$TNR * da.fdr.df$NPV) - 
+    sqrt(da.fdr.df$FDR * da.fdr.df$FNR * da.fdr.df$FPR * da.fdr.df$FOR)
+da.fdr.df$F1 <- 2*((da.fdr.df$PPV * da.fdr.df$TPR)/(da.fdr.df$PPV + da.fdr.df$TPR))
+da.fdr.df$Power <- 1 - da.fdr.df$FNR
+```
+
+I've compute the confusion matrix for each method, from which I have calculated the precision (positive predictive value), recall (TPR), FDR and 
+Matthews correlation coefficient (MCC).
+
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
+ggplot(da.fdr.df, aes(x=reorder(Method, -PPV), y=PPV)) +
+    geom_bar(stat='identity') +
+    theme_clean() +
+    labs(x="DA Method", y="PPV")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_PPV.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
+ggplot(da.fdr.df, aes(x=reorder(Method, -FDR), y=FDR)) +
+    geom_bar(stat='identity') +
+    geom_hline(yintercept=0.1, lty=2, col='red') +
+    theme_clean() +
+    labs(x="DA Method", y="Cell-wise FDR")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_FDR.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
+ggplot(da.fdr.df, aes(x=reorder(Method, -TPR), y=TPR)) +
+    geom_bar(stat='identity') +
+    theme_clean() +
+    labs(x="DA Method", y="Recall")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_Recall.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.25}
+ggplot(da.fdr.df, aes(x=reorder(Method, -MCC), y=MCC)) +
+    geom_bar(stat='identity') +
+    theme_cowplot() +
+    theme(axis.text=element_text(size=20),
+          axis.title=element_text(size=22)) +
+    labs(x="Method", y="MCC")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_MCC.pdf",
+       height=2.95, width=6.95, useDingbats=FALSE)
+```
+
+What does the power look like?
+
+```{r, warning=FALSE, fig.height=3.95, fig.width=4.25}
+ggplot(da.fdr.df, aes(x=reorder(Method, -Power), y=Power)) +
+    geom_bar(stat='identity') +
+    theme_clean() +
+    labs(x="DA Method", y="Power")
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_Power.pdf",
+       height=3.95, width=4.25, useDingbats=FALSE)
+```
+
+Let's visualise these in a single table/matrix. I have to split this into the measures where higher is better and 
+lower is better.
+
+```{r, warning=FALSE, message=FALSE}
+# calculate the rank along each column
+da.negrank.df <- as.data.frame(apply(da.fdr.df[, c("Power", "F1", "TNR", "TPR", "NPV", "PPV")],
+                                     2, FUN=function(X) rank(-X)))
+da.negrank.df$Method <- da.fdr.df$Method
+da.negrank.melt <- melt(da.negrank.df, id.vars=c("Method"))
+da.negrank.melt$value <- ordered(da.negrank.melt$value,
+                                 levels=c(1:5))
+
+rank.cols <- colorRampPalette(pal_futurama()(3))(5)
+names(rank.cols) <- c(1:5)
+
+ggplot(da.negrank.melt, 
+       aes(x=Method, y=variable, fill=value)) +
+    geom_tile() +
+    theme_cowplot() +
+    scale_fill_manual(values=rank.cols) +
+    labs(x="Method", y="Measure") +
+     theme(axis.text=element_text(size=18),
+          axis.title=element_text(size=22),
+          legend.text=element_text(size=18),
+          legend.title=element_text(size=20)) +
+    guides(fill=guide_legend(title="Rank"))
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_PosRank_table.pdf",
+       height=3.95, width=6.25, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+# calculate the rank along each column
+da.posrank.df <- as.data.frame(apply(da.fdr.df[, c("FDR", "FPR", "FNR", "FOR")],
+                                     2, FUN=function(X) rank(X)))
+da.posrank.df$Method <- da.fdr.df$Method
+da.posrank.melt <- melt(da.posrank.df, id.vars=c("Method"))
+da.posrank.melt$value <- ordered(da.posrank.melt$value,
+                                 levels=c(1:5))
+
+rank.cols <- colorRampPalette(pal_futurama()(3))(5)
+names(rank.cols) <- c(1:5)
+
+ggplot(da.posrank.melt, 
+       aes(x=Method, y=variable, fill=value)) +
+    geom_tile() +
+    theme_cowplot() +
+    scale_fill_manual(values=rank.cols) +
+    labs(x="Method", y="Measure") +
+    theme(axis.text=element_text(size=18),
+          axis.title=element_text(size=22),
+          legend.text=element_text(size=18),
+          legend.title=element_text(size=20)) +
+    guides(fill=guide_legend(title="Rank"))
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_NegRank_table.pdf",
+       height=3.95, width=6.25, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+# calculate the rank along each column
+allrank.melt <- do.call(rbind.data.frame, list("post"=da.posrank.melt, "neg"=da.negrank.melt))
+
+rank.cols <- colorRampPalette(pal_futurama()(3))(5)
+names(rank.cols) <- c(1:5)
+
+ggplot(allrank.melt, 
+       aes(x=Method, y=variable, fill=value)) +
+    geom_tile() +
+    theme_cowplot() +
+    scale_fill_manual(values=rank.cols) +
+    labs(x="Method", y="Measure") +
+     theme(axis.text=element_text(size=18),
+          axis.title=element_text(size=22),
+          legend.text=element_text(size=18),
+          legend.title=element_text(size=20)) +
+    guides(fill=guide_legend(title="Rank"))
+
+ggsave("~/Dropbox/Milo/figures/MethodCompare_AllRank_table.pdf",
+       height=4.15, width=6.95, useDingbats=FALSE)
+```
+
+

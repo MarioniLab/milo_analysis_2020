@@ -1,0 +1,9 @@
+﻿Method,Key Parameters,Values,Hypothesis testing
+Milo,K,10,Negative binomial GLM, 10% FDR
+,d,15,Negative binomial GLM, 10% FDR
+Cydar,r,2,Negative binomial GLM, 10% FDR
+DAseq,k.vector,5-500, steps of 50,Logistic classifier prediction, top 10%
+Louvain + edgeR,K,10,Negative binomial GLM, 10% FDR
+,d,15,
+Walktrap + edgeR,K,10,Negative binomial GLM, 10% FDR
+,d,15,

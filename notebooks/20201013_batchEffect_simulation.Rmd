@@ -1,0 +1,564 @@
+---
+title: "Batch effect simulation"
+output: html_notebook
+---
+
+```{r}
+library(miloR)
+library(tidyverse)
+```
+
+We want to check the effect of batch effects on Milo DA testing in a controlled setting, using simulations
+
+## Make simulated dataset
+```{r, warning=FALSE, message=FALSE}
+set.seed(42)
+dataset <- generate_dataset(
+  model = model_linear(num_milestones = 10),
+  num_cells = 5000,
+  num_features = 5000
+)
+
+gex <- as.matrix(dataset$counts) ## <---- HERE CHANGE TO COUNTS
+branches <- dataset$prior_information$groups_id
+  
+```
+
+I assign cells to simulated biological conditions and replicates, that we will use for differential abundance testing. For each of the $M$ clusters, I assign different proportions of cells to condition A or condition B, while simulating proportionate mixing between replicates.
+
+```{r}
+coldata_df <- data.frame(cell_id = rownames(gex))
+coldata_df <- left_join(coldata_df, branches)
+  
+## Simulate DA between conditions
+prob_start <- 0.05
+prob_end <- 0.95
+n_groups <- length(unique(branches$group_id))
+da_groups <- c("M8", "M9", "M10")
+p_vec <- ifelse(paste0("M", 1:10) %in% da_groups, 0.2, 0.5)
+# p_vec <- seq(prob_start, prob_end, length.out = n_groups)
+a.cells <- c()
+for (i in 1:n_groups) {
+  g <- paste0("M",i)
+  p <- p_vec[i] 
+  m.A <- sample(coldata_df$cell_id[coldata_df$group_id==g], 
+                size=floor(sum(coldata_df$group_id==g)*p))
+  a.cells <- c(a.cells, m.A)
+}
+
+coldata_df <- coldata_df %>% dplyr::mutate(condition = ifelse(cell_id %in% a.cells, "A", 'B')) 
+
+## Simulate replicates
+coldata_df <- coldata_df %>%
+  group_by(group_id) %>%
+  dplyr::mutate(replicate=c(rep("R1", floor(n()*0.3)), 
+                            rep("R2", floor(n()*0.3)), 
+                            rep("R3", n() - 2*(floor(n()*0.3))))
+  ) 
+
+## Add sample name (condition + replicate)
+coldata_df$sample <- paste(coldata_df$condition, coldata_df$replicate, sep="_")
+
+coldata_df %>%
+  group_by(group_id, condition) %>%
+  summarise(n=n()) %>%
+  pivot_wider(id_cols=group_id, names_from=condition, values_from=n)
+
+```
+
+Finally I can construct a `Milo` object for DA analysis.
+
+```{r}
+## Make SingleCellExperiment object
+coldata <- coldata_df %>% column_to_rownames("cell_id")
+sim_sce <- SingleCellExperiment(assay=list(counts=t(gex)), colData=coldata)
+logcounts(sim_sce) <- log2(counts(sim_sce) + 1)
+sim_sce <- scater::runPCA(sim_sce, ncomponents=30, scale=TRUE)
+
+## Make milo object
+sim_milo <- Milo(sim_sce)
+sim_milo
+```
+
+
+## Add random batch effect to the replicates
+
+```{r}
+sim_milo_be <- sim_milo
+logcounts(sim_milo_be) <- log2(counts(sim_milo_be) + 1)
+
+assay(sim_milo_be, 'scaled_logcounts') <- scale(logcounts(sim_milo_be))
+
+set.seed(2020)
+batch_effect1 <- rnorm(n = nrow(sim_milo), sd=0.5, mean=0)
+set.seed(2022)
+batch_effect2 <- rnorm(n = nrow(sim_milo), sd=0.5, mean=0)
+
+for (smp in unique(sim_milo_be$sample)){
+  if (smp %in% c("A_R1", "B_R1")) {
+    assay(sim_milo_be, 'scaled_logcounts')[,sim_milo_be$sample == smp] <- 
+      apply(assay(sim_milo_be, 'scaled_logcounts')[,sim_milo_be$sample == smp], 2, function(x) x + batch_effect1)
+  } else {
+    assay(sim_milo_be, 'scaled_logcounts')[,sim_milo_be$sample == smp] <- 
+      apply(assay(sim_milo_be, 'scaled_logcounts')[,sim_milo_be$sample == smp], 2, function(x) x + batch_effect2)
+    }
+  }
+
+logcounts(sim_milo_be) <- assay(sim_milo_be, 'scaled_logcounts') 
+sim_milo_be <- scater::runPCA(sim_milo_be, ncomponents=30, scale=FALSE)
+sim_milo_be <- runUMAP(sim_milo_be, pca=30)
+
+## Save as batch covariate
+colData(sim_milo_be)['technical_batch'] <- ifelse(sim_milo_be$sample %in% c("A_R1", "B_R1"), "B1", "B2")
+```
+
+```{r}
+plotUMAP(sim_milo_be, colour_by="sample") + plotUMAP(sim_milo_be, colour_by="technical_batch")
+```
+
+## Run MNN correction
+
+```{r}
+library(batchelor)
+# sim_milo_be_mnn <- sim_milo_be
+
+## Split in two SCE objects
+b1_milo <- sim_milo_be[,sim_milo_be$technical_batch=="B1"]
+b2_milo <- sim_milo_be[,sim_milo_be$technical_batch=="B2"]
+
+sim_milo_be_mnn <- batchelor::fastMNN(b1_milo, b2_milo)
+sim_milo_be_mnn <- runUMAP(sim_milo_be_mnn, dimred="corrected")
+```
+
+```{r, fig.width=10, fig.height=4}
+## Reorder cells and add coldata
+sim_milo_be_mnn <- sim_milo_be_mnn[,colnames(sim_milo_be)]
+colData(sim_milo_be_mnn) <- colData(sim_milo_be)
+
+plotUMAP(sim_milo_be_mnn, colour_by="sample") + plotUMAP(sim_milo_be_mnn, colour_by="technical_batch")
+```
+```{r}
+plotUMAP(sim_milo_be_mnn, colour_by="group_id", text_by="group_id")
+plotUMAP(sim_milo_be_mnn, colour_by="condition")
+```
+Make good plots
+```{r, fig.height=8, fig.width=7}
+umap_mnn_df <- data.frame(reducedDim(sim_milo_be_mnn,"UMAP"))
+colnames(umap_mnn_df) <- c("UMAP1", "UMAP2") 
+umap_mnn_df[,"UMAP1"] <- jitter(umap_mnn_df[,"UMAP1"], factor=100)
+umap_mnn_df[,"UMAP2"] <- jitter(umap_mnn_df[,"UMAP2"], factor=100)
+umap_mnn_df <- cbind(umap_mnn_df, data.frame(colData(sim_milo_be_mnn)[c("technical_batch", "condition", "group_id")])) %>%
+  mutate(trueDA=ifelse(group_id %in% da_groups, "is DA", NA))  %>%
+  mutate(technical_batch=factor(technical_batch, levels=c("B2", "B1")))
+
+umap_uncor_df <- data.frame(reducedDim(sim_milo_be,"UMAP"))
+colnames(umap_uncor_df) <- c("UMAP1", "UMAP2") 
+umap_uncor_df[,"UMAP1"] <- jitter(umap_uncor_df[,"UMAP1"], factor=100)
+umap_uncor_df[,"UMAP2"] <- jitter(umap_uncor_df[,"UMAP2"], factor=100)
+umap_uncor_df <- cbind(umap_uncor_df, data.frame(colData(sim_milo_be)[c("technical_batch", "condition", "group_id")])) %>%
+  mutate(trueDA=ifelse(group_id %in% da_groups, "is DA", NA)) %>%
+  mutate(technical_batch=factor(technical_batch, levels=c("B2", "B1")))
+
+mnn_1 <- ggplot(umap_mnn_df, aes(UMAP1, UMAP2)) +
+  geom_point(size=0.1, alpha=0.1) +
+  geom_point(data=.%>% dplyr::filter(!is.na(trueDA)), aes(color="is DA"), size=0.3) +
+  # coord_fixed() +
+  scale_color_manual(values="red", name="") +
+  theme_classic(base_size = 20) +
+  guides(color=guide_legend(override.aes = list(size=2))) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        legend.background = element_blank(),
+        legend.position = "top", plot.title=element_text(hjust=0.5)) +
+  # ggtitle("MNN corrected")
+  NULL
+
+mnn_2 <- ggplot(umap_mnn_df %>% arrange(UMAP1), aes(UMAP1, UMAP2, color=technical_batch)) +
+  geom_point(size=0.3, alpha=1) +
+  # coord_fixed() +
+  scale_color_brewer(palette="Set2", name="Batch") +
+  theme_classic(base_size = 20) +
+  guides(color=guide_legend(override.aes = list(size=2))) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        legend.background = element_blank(),
+        legend.position = "top", plot.title=element_text(hjust=0.5)) 
+  # ggtitle("MNN corrected")
+
+uncor_1 <- ggplot(umap_uncor_df, aes(UMAP1, UMAP2)) +
+  geom_point(size=0.1, alpha=0.1) +
+  geom_point(data=.%>% dplyr::filter(!is.na(trueDA)), aes(color="is DA"), size=0.3) +
+  # coord_fixed() +
+  scale_color_manual(values="red", name="") +
+  theme_classic(base_size = 20) +
+  guides(color=guide_legend(override.aes = list(size=2))) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        legend.background = element_blank(),
+        legend.position = "top", plot.title=element_text(hjust=0.5)) +
+  # ggtitle("MNN corrected")
+  NULL
+
+uncor_2 <- ggplot(umap_uncor_df %>% arrange(sample(nrow(umap_uncor_df))), aes(UMAP1, UMAP2, color=technical_batch)) +
+  geom_point(size=0.3, alpha=1) +
+  # coord_fixed() +
+  scale_color_brewer(palette="Set2", name="Batch") +
+  theme_classic(base_size = 20) +
+  # facet_grid("Uncorrected"~., switch = 'y') +
+  guides(color=guide_legend(override.aes = list(size=2))) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        # strip.placement = "outside",
+        legend.background = element_blank(),
+        legend.position = "top", plot.title=element_text(hjust=0.5)) 
+  # ggtitle("MNN corrected")
+
+
+pan_1 <- ((uncor_2  + uncor_1) / ((mnn_2 + guides(color="none")) + (mnn_1 + guides(color="none")))) 
+pan_1
+```
+
+## Run DA analysis with different designs
+
+Make design matrix
+
+```{r}
+sim_design <- data.frame(colData(sim_milo_be))[,c("sample", "condition", "technical_batch")]
+sim_design <- distinct(sim_design)
+rownames(sim_design) <- NULL
+sim_design <- column_to_rownames(sim_design, "sample")
+sim_design
+```
+
+
+```{r}
+
+## Milo pre-processing
+k=10
+
+sim_milo_be <- buildGraph(sim_milo_be, k = k, d = 30)
+sim_milo_be <- makeNhoods(sim_milo_be, k = k, d = 30, prop = 0.1, refined = TRUE)
+sim_milo_be <- countCells(sim_milo_be , meta.data = data.frame(colData(sim_milo_be)), sample="sample")
+sim_milo_be <- calcNhoodDistance(sim_milo_be, d = 30)
+
+reducedDim(sim_milo_be_mnn, "PCA") <- reducedDim(sim_milo_be_mnn, "corrected")
+sim_milo_be_mnn <- buildGraph(sim_milo_be_mnn, k = k, d = 30)
+sim_milo_be_mnn <- makeNhoods(sim_milo_be_mnn, k = k, d = 30, prop = 0.1, refined = TRUE)
+sim_milo_be_mnn <- countCells(sim_milo_be_mnn , meta.data = data.frame(colData(sim_milo_be)), sample="sample")
+sim_milo_be_mnn <- calcNhoodDistance(sim_milo_be_mnn, d = 30)
+
+## Run test
+da_res_be_cond <- testNhoods(sim_milo_be, design = ~ condition, design.df = sim_design)
+da_res_be_cond_tech <- testNhoods(sim_milo_be, design = ~ technical_batch + condition, design.df = sim_design)
+da_res_mnn_cond <- testNhoods(sim_milo_be_mnn, design = ~ condition, design.df = sim_design)
+da_res_mnn_cond_tech <- testNhoods(sim_milo_be_mnn, design = ~ technical_batch + condition, design.df = sim_design)
+
+```
+
+Diagnostic plots
+
+```{r, fig.height=5, fig.width=10}
+ggplot(da_res_be_cond, aes(PValue)) + geom_histogram() +
+ggplot(da_res_be_cond, aes(logFC, -log10(SpatialFDR))) + geom_point() +
+  ggtitle("uncorrected - design = ~ condition")
+
+ggplot(da_res_be_cond_tech, aes(PValue)) + geom_histogram() +
+ggplot(da_res_be_cond_tech, aes(logFC, -log10(SpatialFDR))) +
+  geom_point() +
+  ggtitle("uncorrected - design = ~ batch + condition")
+
+ggplot(da_res_mnn_cond, aes(PValue)) + geom_histogram() +
+ggplot(da_res_mnn_cond, aes(logFC, -log10(SpatialFDR))) +
+  geom_point() +
+  ggtitle("MNN corrected - design = ~ condition")
+
+ggplot(da_res_mnn_cond_tech, aes(PValue)) + geom_histogram() +
+ggplot(da_res_mnn_cond_tech, aes(logFC, -log10(SpatialFDR))) +
+  geom_point() +
+  ggtitle("MNN corrected - design = ~ batch + condition")
+
+
+```
+
+
+```{r}
+myPlotNhoodGraph <- function(x, layout="UMAP", colour_by=NA, subset.nhoods=NULL, jitter=TRUE, ... ){
+  ## Check for valid nhoodGraph object
+  if(!.valid_graph(nhoodGraph(x))){
+    stop("Not a valid Milo object - neighbourhood graph is missing. Please run buildNhoodGraph() first.")
+  }
+  if (is.character(layout)) {
+    if (!layout %in% names(reducedDims(x))) {
+      stop(paste(layout, "isn't in readucedDim(x) - choose a different layout"))
+    }
+  }
+  nh_graph <- nhoodGraph(x)
+
+  ## Subset
+  if (!is.null(subset.nhoods)) {
+    nh_graph <- igraph::induced_subgraph(nh_graph, vids = which(as.numeric(V(nh_graph)$name) %in% unlist(nhoodIndex(x)[subset.nhoods])))
+  }
+
+
+  # ## Order vertex ids by size (so big nhoods are plotted first)
+  # nh_graph <- permute(nh_graph, order(vertex_attr(nh_graph)$size))
+
+  ## Define node color
+  if (!is.na(colour_by)) {
+    if (colour_by %in% colnames(colData(x))) {
+
+      col_vals <- colData(x)[as.numeric(vertex_attr(nh_graph)$name), colour_by]
+      if (!is.numeric(col_vals)) {
+        col_vals <- as.character(col_vals)
+        }
+      V(nh_graph)$colour_by <- col_vals
+    } else {
+      stop(paste(colour_by, "is not a column in colData(x)"))
+    }
+  } else {
+    V(nh_graph)$colour_by <- V(nh_graph)$size
+    colour_by <- "Nhood size"
+  }
+  # print(order(abs(vertex_attr(nh_graph)$colour_by)))
+  # before <- vertex_attr(nh_graph, "name")
+  
+  # after <- vertex_attr(nh_graph, "name")
+  # print(before==after)
+  
+  if (jitter){
+    set.seed(42)
+    reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),1] <- jitter(reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),1], factor=400)
+    reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),2] <- jitter(reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),2], factor=400)
+    # layout[,1] <- jitter(layout[,1], factor=400)
+    # layout[,2] <- jitter(layout[,2], factor=400)
+  }
+  
+  nh_graph <- igraph::permute(nh_graph, order(abs(vertex_attr(nh_graph)$colour_by), decreasing = FALSE))
+  
+  ## Define layout
+  if (is.character(layout)) {
+    redDim <- layout
+    layout <- reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),]
+    # make sure this is a matrix!
+    if(!any(class(layout) %in% c("matrix"))){
+        warning("Coercing layout to matrix format")
+        layout <- as(layout, "matrix")
+    }
+  }
+
+  
+  
+  pl <- ggraph(simplify(nh_graph), layout = layout) +
+    geom_edge_link0(aes(width = weight), edge_colour = "grey66", edge_alpha=0.2) +
+    geom_node_point(aes(fill = colour_by, size = size), color="grey20", shape=21) +
+    scale_size(range = c(0.5,2), name="Nhood size") +
+    scale_edge_width(range = c(0.2,3), name="overlap size") +
+    theme_classic(base_size=20) +
+    theme(axis.line = element_blank(), axis.text = element_blank(),
+          axis.ticks = element_blank(), axis.title = element_blank())
+    # theme_graph()
+
+  if (is.numeric(V(nh_graph)$colour_by)) {
+    pl <- pl + scale_fill_gradient2(name=colour_by)
+  } else {
+    pl <- pl + scale_fill_brewer(palette="Spectral", name=colour_by)
+  }
+
+  pl
+  }
+
+
+myPlotNhoodGraphDA <- function(x, milo_res, alpha=0.05, ... ){
+  if(!.valid_graph(nhoodGraph(x))){
+    stop("Not a valid Milo object - neighbourhood graph is missing. Please run buildNhoodGraph() first.")
+  }
+  if (is.character(layout)) {
+    if (!layout %in% names(reducedDims(x))) {
+      stop(paste(layout, "is not in readucedDim(x) - choose a different layout"))
+    }
+  }
+
+  ## Add milo results to colData
+  signif_res <- milo_res
+  signif_res[signif_res$SpatialFDR > alpha,"logFC"] <- 0
+  colData(x)["logFC"] <- 0
+  colData(x)[unlist(nhoodIndex(x)[signif_res$Nhood]),] <- signif_res$logFC
+
+  ## Plot logFC
+  myPlotNhoodGraph(x, colour_by = "logFC", ... )
+}
+myPlotNhoodGraphDA(sim_milo_be_mnn, da_res_mnn_cond_tech, alpha = 0.1)
+```
+
+
+```{r, fig.height=9, fig.width=9}
+sim_milo_be <- buildNhoodGraph(sim_milo_be)
+sim_milo_be_mnn <- buildNhoodGraph(sim_milo_be_mnn)
+
+nh1 <- myPlotNhoodGraphDA(sim_milo_be, da_res_be_cond, alpha = 0.1) +
+  scale_fill_gradient2(limits=c(-2, 5), name="log-Fold Change") +
+  scale_size(limits=c(10,130), range = c(0.5,3), name="Nhood size") +
+  # coord_fixed() +
+  scale_edge_width(range = c(0.2,3), limits=c(0,40), name="overlap size") 
+nh2 <- myPlotNhoodGraphDA(sim_milo_be, da_res_be_cond_tech, alpha = 0.1) +
+  scale_fill_gradient2(limits=c(-2, 5), name="log-Fold Change") +
+  # coord_fixed() +
+  scale_size(limits=c(10,130), range = c(0.5,3), name="Nhood size") +
+  scale_edge_width(range = c(0.2,3), limits=c(0,40), name="overlap size") 
+nh3 <- myPlotNhoodGraphDA(sim_milo_be_mnn, da_res_mnn_cond, alpha = 0.1) +
+  scale_fill_gradient2(limits=c(-2, 5), name="log-Fold Change") +
+  # coord_fixed() +
+  scale_size(limits=c(10,130), range = c(0.5,3), name="Nhood size") +
+  scale_edge_width(range = c(0.2,3), limits=c(0,40), name="overlap size") 
+nh4 <- myPlotNhoodGraphDA(sim_milo_be_mnn, da_res_mnn_cond_tech, alpha = 0.1) +
+  scale_fill_gradient2(limits=c(-2, 5), name="log-Fold Change") +
+  # coord_fixed() +
+  scale_size(limits=c(10,130), range = c(0.5,3), name="Nhood size") +
+  scale_edge_width(range = c(0.2,3), limits=c(0,40), name="overlap size") 
+
+pan_2 <- ((nh1 + facet_wrap("~ condition"~.) ) | nh2 + facet_wrap('~ batch + condition'~.))  /
+  ((nh3 ) | nh4) +
+  plot_layout(guides="collect") &
+  guides(fill=guide_colourbar(title.position="top", title.hjust = 0.5, barwidth = 6),
+         size=guide_legend(title.position="top", title.hjust = 0.5, ncol=2),
+         edge_width=guide_legend(title.position="top", title.hjust = 0.5, ncol=2)) &
+  theme(legend.position = "top")
+
+pan_2
+```
+
+```{r, fig.width=15, fig.height=6}
+(pan_1 | pan_2) + plot_layout(widths=c(1,1.2)) +
+  ggsave("~/milo_output/batch_effect_sim_umaps.pdf", width = 15, height = 7)
+```
+
+
+```{r}
+add_nhood_coldata_to_res(sim_milo_be_mnn, da_res_mnn_cond, "group_id") %>%
+  mutate(color=ifelse(group_id %in% da_groups, TRUE, FALSE)) %>%
+  ggplot( aes(logFC, -log10(SpatialFDR), color=color)) +
+  geom_point() +
+  ggtitle("MNN corrected - design = ~ condition")
+
+```
+
+
+
+## Compare FPR / TPR
+
+```{r}
+## Add if cells are TP or TN
+true_DA <- ifelse(sim_milo_be$group_id %in% da_groups, "TP", "TN")
+colData(sim_milo_be)["trueDA"] <- factor(true_DA) ## Make factor otherwise counting with table doesn't work
+true_DA <- ifelse(sim_milo_be_mnn$group_id %in% da_groups, "TP", "TN")
+colData(sim_milo_be_mnn)["trueDA"] <- factor(true_DA) ## Make factor otherwise counting with table doesn't work
+
+## Find which nhoods are TP / TN
+add_nhood_coldata_to_res <- function(liver_milo, milo_res, coldata_col){
+  nhood_counts <- sapply(seq_along(nhoods(liver_milo)), function(x) table(colData(liver_milo)[as.vector(nhoods(liver_milo)[[x]]), coldata_col]))
+  nhood_counts <- t(nhood_counts)
+  rownames(nhood_counts) <- seq_along(nhoods(liver_milo))
+  max_val <- apply(nhood_counts, 1, function(x) colnames(nhood_counts)[which.max(x)])
+  max_frac <- apply(nhood_counts, 1, function(x) max(x)/sum(x))
+  milo_res[coldata_col] <- max_val
+  milo_res[paste0(coldata_col, "_fraction")] <- max_frac
+  return(milo_res)
+}
+
+da_res_be_cond <- add_nhood_coldata_to_res(sim_milo_be, da_res_be_cond, coldata_col = "trueDA") 
+  # mutate(trueDA = ifelse(trueDA=="TP" & trueDA_fraction > 0.7, "TP", "TN"))
+da_res_be_cond_tech <- add_nhood_coldata_to_res(sim_milo_be, da_res_be_cond_tech, coldata_col = "trueDA") 
+  # mutate(trueDA = ifelse(trueDA=="TP" & trueDA_fraction > 0.7, "TP", "TN"))
+da_res_mnn_cond <- add_nhood_coldata_to_res(sim_milo_be_mnn, da_res_mnn_cond, coldata_col = "trueDA") 
+  # mutate(trueDA = ifelse(trueDA=="TP" & trueDA_fraction > 0.7, "TP", "TN"))
+da_res_mnn_cond_tech <- add_nhood_coldata_to_res(sim_milo_be_mnn, da_res_mnn_cond_tech, coldata_col = "trueDA") 
+  # mutate(trueDA = ifelse(trueDA=="TP" & trueDA_fraction > 0.7, "TP", "TN"))
+```
+
+```{r}
+colData(sim_milo_be_mnn)["group_id"] <- factor(colData(sim_milo_be_mnn)[["group_id"]])
+add_nhood_coldata_to_res(sim_milo_be_mnn, da_res_mnn_cond, coldata_col = "group_id")  
+da_res_mnn_cond %>%
+  # mutate(da=ifelse(group_id %in% da_groups, "isDA", "notDA")) %>%
+  ggplot(aes(logFC, -log10(SpatialFDR))) +
+  geom_hline(yintercept = -log10(0.1)) +
+  geom_point()
+```
+
+
+
+```{r}
+res_ls <- list(uncor_cond = da_res_be_cond,
+     uncor_cond_tech= da_res_be_cond_tech,
+     mnn_cond = da_res_mnn_cond,
+     mnn_cond_tech = da_res_mnn_cond_tech)
+
+outcomes_df <-
+  imap(res_ls, ~ .x %>%
+    mutate(predDA = ifelse(SpatialFDR < 0.1, "Positive", "Negative")) %>%
+    mutate(outcome = case_when(trueDA == "TP" & predDA == "Positive" ~ "TP",
+                             trueDA == "TP" & predDA == "Negative" ~ "FN",
+                             trueDA == "TN" & predDA == "Positive" ~ "FP",
+                             trueDA == "TN" & predDA == "Negative" ~ "TN"
+                             )) %>%
+    mutate(outcome=factor(outcome, levels = c("TP", "TN", "FP", "FN"))) %>%
+    group_by(outcome) %>%
+    summarise(n = n()) %>%
+    mutate(set=.y)
+  ) %>%
+  purrr::reduce(bind_rows) 
+
+outcomes_df %>%
+  pivot_wider(id_cols='set', names_from=outcome, values_from="n", values_fill = 0) %>%
+  mutate(TPR=TP/(TP+FP), FPR=FP/(FP+FN),
+         accuracy = (TP + TN)/(TP + TN + FP + FN),
+         recall = TP / (TP+FN)) %>%
+  mutate(set=str_replace(set, "cond_tech", "~ batch + condition")) %>%
+  mutate(set=str_replace(set, "cond$", "~ condition")) %>%
+  separate(col=set, sep="_", into=c('dataset', 'design')) %>%
+  ggplot(aes(dataset, FPR, fill=design)) +
+  geom_col(position="dodge")
+```
+```{r}
+pl_right <- imap(res_ls, ~ .x %>%
+    mutate(predDA = ifelse(SpatialFDR < 0.1, "Positive", "Negative")) %>%
+    # mutate(outcome=factor(outcome, levels = c("TP", "TN", "FP", "FN"))) %>%
+    group_by(predDA, trueDA) %>%
+    summarise(n = n()) %>%
+    mutate(set=.y)
+  ) %>%
+  purrr::reduce(bind_rows) %>%
+  pivot_wider(id_cols=c('set', "trueDA"), names_from="predDA", values_from="n", values_fill = 0) %>%
+  pivot_longer(cols=c("Negative", 'Positive'), names_to="predDA", values_to="n") %>%
+  mutate(set=str_replace(set, "cond_tech", "~ batch + condition")) %>%
+  mutate(set=str_replace(set, "cond$", "~ condition")) %>%
+  separate(col=set, sep="_", into=c('dataset', 'design')) %>%
+  mutate(dataset=factor(ifelse(dataset=="mnn", "MNN corrected", "Uncorrected"), levels=c("Uncorrected", "MNN corrected"))) %>%
+  mutate(trueDA=factor(ifelse(trueDA=="TP", "is DA", "not DA"), levels=c("not DA", "is DA"))) %>%
+  mutate(predDA=factor(ifelse(predDA=="Positive", "is DA", "not DA"), levels=c("not DA", "is DA"))) %>%
+  mutate(design=factor(design, levels=c("~ condition", "~ batch + condition"))) %>%
+  ggplot(aes(trueDA, predDA, fill=n)) +
+  geom_tile() +
+  geom_text(aes(label=n), size=6) +
+  facet_grid(dataset~design) +
+  # coord_fixed() +
+  ylab("Predicted") +
+  xlab("True") +
+  scale_fill_gradient(low="grey98", high="red", name="# neighbourhoods") +
+  theme_classic(base_size = 20) +
+  guides(fill = guide_colourbar(title.position="top", title.hjust = 0.5, barwidth = 10)) +
+  theme(legend.position = "top", legend.text = element_blank(), legend.justification = 'center') 
+
+pl_right +
+  ggsave("~/milo_output/batch_effect_sim_confs.pdf", height = 5.3, width = 5.4)
+```
+
+Assemble figure
+
+
+```{r, fig.width=15, fig.height=6}
+(pan_1 | pan_2 | pl_right) + plot_layout(widths=c(1,1.1,0.8)) +
+  ggsave("~/milo_output/suppl_fig1.pdf", width = 18, height = 7.5)
+```
+  
+
+
+
+
+

@@ -1,0 +1,45 @@
+---
+title: "Milo scalability"
+output: html_notebook
+---
+
+I have simulated data on upto 200k cells from a single linear trajectory. Using these data I 
+have performed the various steps in `Milo`, up to and including differential abundance testing 
+and recorded the clock time using different numbers of cells. The results are plotted here.
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(ggthemes)
+library(ggsci)
+library(scales)
+library(reshape2)
+```
+
+
+```{r}
+timing.dir <- "~/Dropbox/Milo/simulations/timing.dir/"
+time.files <- list.files(timing.dir, full.names = TRUE)
+time.list <- list()
+
+for(x in seq_along(time.files)){
+    x.time <- read.table(time.files[x], sep="\t", header=TRUE, stringsAsFactors=FALSE)
+    time.list[[paste0(x)]] <- x.time
+}
+
+time.df <- do.call(rbind.data.frame, time.list)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(time.df, aes(x=NCells, y=Elapsed/60)) +
+    geom_point(size=3) +
+    theme_clean() +
+    labs(x="#Cells", y="Elapsed time (mins)")
+
+ggsave("~/Dropbox/Milo/figures/Simulation_timing.png",
+       height=4.15, width=4.75, dpi=300)
+```
+
+
+
+
