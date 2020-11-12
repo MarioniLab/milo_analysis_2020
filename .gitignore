@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+.ipynb_checkpoints
 ms/supplement/suppl_figs/
 ms/figures/figs/
 ms/figures/milo_figures_cache/
