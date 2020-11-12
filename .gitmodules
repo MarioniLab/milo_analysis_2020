@@ -1,5 +1,1 @@
 
-[submodule "miloR"]
-	path = miloR
-	url = git@github.com:MikeDMorgan/miloR.git
-	branch = master
