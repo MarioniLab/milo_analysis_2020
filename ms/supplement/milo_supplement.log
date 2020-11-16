@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.27)  11 NOV 2020 16:12
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.27)  16 NOV 2020 18:41
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -499,25 +499,25 @@ File: suppl_figs/suppl_fig5.pdf Graphic file (type pdf)
 <use suppl_figs/suppl_fig5.pdf>
 Package pdftex.def Info: suppl_figs/suppl_fig5.pdf  used on input line 156.
 (pdftex.def)             Requested size: 469.75635pt x 482.6603pt.
-<suppl_figs/suppl_fig6.pdf, id=67, 578.16pt x 505.89pt>
+<suppl_figs/suppl_fig6.pdf, id=67, 1373.13pt x 1156.32pt>
 File: suppl_figs/suppl_fig6.pdf Graphic file (type pdf)
 <use suppl_figs/suppl_fig6.pdf>
 Package pdftex.def Info: suppl_figs/suppl_fig6.pdf  used on input line 166.
-(pdftex.def)             Requested size: 469.75385pt x 411.0346pt.
+(pdftex.def)             Requested size: 469.74944pt x 395.57848pt.
 <suppl_figs/suppl_fig7.pdf, id=68, 735.61923pt x 930.28854pt>
 File: suppl_figs/suppl_fig7.pdf Graphic file (type pdf)
 <use suppl_figs/suppl_fig7.pdf>
-Package pdftex.def Info: suppl_figs/suppl_fig7.pdf  used on input line 182.
+Package pdftex.def Info: suppl_figs/suppl_fig7.pdf  used on input line 184.
 (pdftex.def)             Requested size: 469.76204pt x 594.0767pt.
 
-LaTeX Warning: Float too large for page by 52.1467pt on input line 185.
+LaTeX Warning: Float too large for page by 52.1467pt on input line 187.
 
 [2 <./suppl_figs/suppl_fig3.pdf>] [3 <./suppl_figs/suppl_fig1.pdf>] [4 <./suppl
 _figs/suppl_fig2.pdf>] [5 <./suppl_figs/suppl_fig4.pdf>] [6 <./suppl_figs/suppl
 _fig5.pdf>] [7 <./suppl_figs/suppl_fig6.pdf>] [8 <./suppl_figs/suppl_fig7.pdf>]
 [9] [10]
 LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 2
-61.
+63.
 (/home/jovyan/.TinyTeX/texmf-dist/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2009/10/30 v1.6 Font defs for Latin Modern
 ) [11] [12] (./milo_supplement.aux)
@@ -527,7 +527,7 @@ Package rerunfilecheck Info: File `milo_supplement.out' has not changed.
 Here is how much of TeX's memory you used:
  11005 strings out of 481866
  156161 string characters out of 5931061
- 462911 words of memory out of 5000000
+ 463575 words of memory out of 5000000
  27078 multiletter control sequences out of 15000+600000
  596495 words of font info for 72 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
@@ -548,10 +548,10 @@ TeX/texmf-dist/fonts/type1/public/lm/lmr7.pfb></home/jovyan/.TinyTeX/texmf-dist
 /fonts/type1/public/lm/lmri10.pfb></home/jovyan/.TinyTeX/texmf-dist/fonts/type1
 /public/lm/lmsy10.pfb></home/jovyan/.TinyTeX/texmf-dist/fonts/type1/public/lm/l
 mtt10.pfb>
-Output written on milo_supplement.pdf (12 pages, 35309670 bytes).
+Output written on milo_supplement.pdf (12 pages, 35386035 bytes).
 PDF statistics:
- 959 PDF objects out of 1000 (max. 8388607)
- 565 compressed objects within 6 object streams
+ 962 PDF objects out of 1000 (max. 8388607)
+ 567 compressed objects within 6 object streams
  56 named destinations out of 1000 (max. 500000)
  108 words of extra memory for PDF output out of 10000 (max. 10000000)
 

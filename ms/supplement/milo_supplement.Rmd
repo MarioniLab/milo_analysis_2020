@@ -67,11 +67,12 @@ Each panel shows a measure of method performance computed across 100 independent
 knitr::include_graphics("suppl_figs/suppl_fig6.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig6) **Additional statistics for liver cirrhosis analysis**
-(A) P-value histogram for DA test (uncorrected P-values)
-(B) Volcano plot for DA test: each point is a neighbourhood. The x-axis shows the log-fold change between cirrhotic and healthy liver cells. The y-axis shows the adjusted p-value. The line represents the threshold for significance (10% FDR).
-(C) Histogram of the fraction of cells belonging to the most abundant cluster in every neighbourhood
-(D) GO term enrichment analysis on DE genes in endothelial lineage. All significant terms are shown (Adj. p-value < 0.01)
+(ref:sup-fig6) **Downstream analysis of disease-specific subpopulations in liver cirrhosis**
+(A) GO term enrichment analysis on marker genes of cirrhosis-enriched endothelia. The top 20 significant terms are shown.
+(B) GO term enrichment analysis on marker genes of healthy-enriched endothelia. The top 20 significant terms are shown.
+(C) UMAP embedding and graph representation of neighbourhoods of 3369 cells from cholangiocytes lineage.
+(B) Volcano plot for DGE test on cholangiocytes subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
+(B) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.
 
 ```{r sup-fig-7, fig.pos="ht", fig.cap="(ref:sup-fig7)", echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig7.pdf", auto_pdf = TRUE)
