@@ -13,33 +13,910 @@ library(ggthemes)
 library(ggsci)
 library(scales)
 library(reshape2)
+library(ggrepel)
 ```
 
 
 ```{r}
-timing.dir <- "~/Dropbox/Milo/simulations/timing.dir/"
-time.files <- list.files(timing.dir, full.names = TRUE)
-time.list <- list()
+# timing.dir <- "~/Dropbox/Milo/simulations/timing.dir/"
+# time.files <- list.files(timing.dir, full.names = TRUE)
+# time.list <- list()
+# 
+# for(x in seq_along(time.files)){
+#     x.time <- read.table(time.files[x], sep="\t", header=TRUE, stringsAsFactors=FALSE)
+#     time.list[[paste0(x)]] <- x.time
+# }
 
-for(x in seq_along(time.files)){
-    x.time <- read.table(time.files[x], sep="\t", header=TRUE, stringsAsFactors=FALSE)
-    time.list[[paste0(x)]] <- x.time
-}
-
-time.df <- do.call(rbind.data.frame, time.list)
+# time.df <- do.call(rbind.data.frame, time.list)
+time.df <- read.table("~/Dropbox/Milo/timing.dir/Trajectory_simulation-timing.tsv",
+                      sep="\t", header=TRUE, stringsAsFactors=FALSE)
+time.df$DataSet <- "Simulation"
 ```
 
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(time.df, aes(x=NCells, y=Elapsed/60)) +
     geom_point(size=3) +
-    theme_clean() +
-    labs(x="#Cells", y="Elapsed time (mins)")
+    theme_bw() +
+    labs(x="#Cells", y="Elapsed time (mins)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
 
 ggsave("~/Dropbox/Milo/figures/Simulation_timing.png",
        height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Simulation_timing.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
 ```
 
+
+```{r, warning=FALSE, message=FALSE}
+memory.df <- read.table("~/Dropbox/Milo/timing.dir/Trajectory_simulation-MemProfile.tsv",
+                        sep="\t", header=TRUE, stringsAsFactor=FALSE)
+
+memory.df$Total.Mem <- apply(memory.df[, c(1:6)], 1, sum)
+memory.df$DataSet <- "Simulation"
+```
+
+I've profiled the memory usage for each function in the Milo workflow.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(memory.df, aes(x=NCells, y=Mem.Graph/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-GraphBuilding.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-GraphBuilding.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(memory.df, aes(x=NCells, y=Mem.Nhoods/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-makeNhoods.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-makeNhoods.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(memory.df, aes(x=NCells, y=Mem.Distance/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-CalcNhoodDistance.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-CalcNhoodDistance.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(memory.df, aes(x=NCells, y=Mem.Count/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-countCells.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-countCells.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(memory.df, aes(x=NCells, y=Mem.Test/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-testNhoods.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-testNhoods.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(memory.df, aes(x=NCells, y=Total.Mem/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-TotalMem.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Simulation_memory-TotalMem.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+## Liver data scalability
+
+```{r}
+liver.time.df <- read.table("~/Dropbox/Milo/timing.dir/Liver-Timing.tsv",
+                            sep="\t", header=TRUE, stringsAsFactors=FALSE)
+liver.time.df$DataSet <- "Liver"
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(liver.time.df, aes(x=NCells, y=Elapsed/60)) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Elapsed time (mins)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Liver_timing.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Liver_timing.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+liver.memory.df <- read.table("~/Dropbox/Milo/timing.dir/Liver-MemProfile.tsv",
+                              sep="\t", header=TRUE, stringsAsFactor=FALSE)
+
+liver.memory.df$Total.Mem <- apply(liver.memory.df[, c(1:6)], 1, sum)
+liver.memory.df$DataSet <- "Liver"
+```
+
+I've profiled the memory usage for each function in the Milo workflow.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(liver.memory.df, aes(x=NCells, y=Mem.Graph/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-GraphBuilding.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-GraphBuilding.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(liver.memory.df, aes(x=NCells, y=Mem.Nhoods/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-makeNhoods.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-makeNhoods.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(liver.memory.df, aes(x=NCells, y=Mem.Distance/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-CalcNhoodDistance.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-CalcNhoodDistance.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(liver.memory.df, aes(x=NCells, y=Mem.Count/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-countCells.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-countCells.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(liver.memory.df, aes(x=NCells, y=Mem.Test/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-testNhoods.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-testNhoods.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(liver.memory.df, aes(x=NCells, y=Mem.Obj/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-objectSize.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-objectSize.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(liver.memory.df, aes(x=NCells, y=Total.Mem/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-TotalMem.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Liver_memory-TotalMem.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+## Thymus data scalability
+
+```{r}
+thymus.time.df <- read.table("~/Dropbox/Milo/timing.dir/Thymus-Timing.tsv",
+                            sep="\t", header=TRUE, stringsAsFactors=FALSE)
+thymus.time.df$DataSet <- "Thymus"
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(thymus.time.df, aes(x=NCells, y=Elapsed/60)) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Elapsed time (mins)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Thymus_timing.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Thymus_timing.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+thymus.memory.df <- read.table("~/Dropbox/Milo/timing.dir/Thymus-MemProfile.tsv",
+                              sep="\t", header=TRUE, stringsAsFactor=FALSE)
+
+thymus.memory.df$Total.Mem <- apply(thymus.memory.df[, c(1:6)], 1, sum)
+thymus.memory.df$DataSet <- "Thymus"
+```
+
+I've profiled the memory usage for each function in the Milo workflow.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(thymus.memory.df, aes(x=NCells, y=Mem.Graph/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-GraphBuilding.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-GraphBuilding.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(thymus.memory.df, aes(x=NCells, y=Mem.Nhoods/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-makeNhoods.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-makeNhoods.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(thymus.memory.df, aes(x=NCells, y=Mem.Distance/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-CalcNhoodDistance.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-CalcNhoodDistance.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(thymus.memory.df, aes(x=NCells, y=Mem.Count/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-countCells.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-countCells.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(thymus.memory.df, aes(x=NCells, y=Mem.Test/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-testNhoods.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-testNhoods.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(thymus.memory.df, aes(x=NCells, y=Mem.Obj/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-objectSize.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-objectSize.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(thymus.memory.df, aes(x=NCells, y=Total.Mem/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-TotalMem.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Thymus_memory-TotalMem.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+## Gastrulation data scalability
+
+```{r}
+gast.time.df <- read.table("~/Dropbox/Milo/timing.dir/Gastrulation-Timing.tsv",
+                            sep="\t", header=TRUE, stringsAsFactors=FALSE)
+gast.time.df$DataSet <- "Gastrulation"
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(gast.time.df, aes(x=NCells, y=Elapsed/60)) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Elapsed time (mins)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_timing.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_timing.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+gast.memory.df <- read.table("~/Dropbox/Milo/timing.dir/Gastrulation-MemProfile.tsv",
+                              sep="\t", header=TRUE, stringsAsFactor=FALSE)
+
+gast.memory.df$Total.Mem <- apply(gast.memory.df[, c(1:6)], 1, sum)
+gast.memory.df$DataSet <- "Gastrulation"
+```
+
+I've profiled the memory usage for each function in the Milo workflow.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(gast.memory.df, aes(x=NCells, y=Mem.Graph/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-GraphBuilding.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-GraphBuilding.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(gast.memory.df, aes(x=NCells, y=Mem.Nhoods/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-makeNhoods.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-makeNhoods.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(gast.memory.df, aes(x=NCells, y=Mem.Distance/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-CalcNhoodDistance.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-CalcNhoodDistance.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(gast.memory.df, aes(x=NCells, y=Mem.Count/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-countCells.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-countCells.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(gast.memory.df, aes(x=NCells, y=Mem.Test/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-testNhoods.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-testNhoods.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(gast.memory.df, aes(x=NCells, y=Mem.Obj/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-objectSize.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-objectSize.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(gast.memory.df, aes(x=NCells, y=Total.Mem/(1024))) +
+    geom_point(size=3) +
+    theme_bw() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'))
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-TotalMem.png",
+       height=4.15, width=4.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/Gastrulation_memory-TotalMem.pdf",
+       height=4.15, width=4.75, useDingbats=FALSE)
+```
+
+
+
+## Combining across data sets
+
+```{r, warning=FALSE , message=FALSE}
+all.timing <- do.call(rbind.data.frame, 
+                      list("Sim"=time.df[time.df$NCells %in% max(time.df$NCells), , drop=FALSE], 
+                           "liver"=liver.time.df[liver.time.df$NCells %in% max(liver.time.df$NCells), , drop=FALSE], 
+                           "thymus"=thymus.time.df[thymus.time.df$NCells %in% max(thymus.time.df$NCells), , drop=FALSE],
+                           "gast"=gast.time.df[gast.time.df$NCells %in% max(gast.time.df$NCells), , drop=FALSE]))
+
+common.cols <- intersect(colnames(memory.df), colnames(liver.memory.df))
+all.memory <- do.call(rbind.data.frame, list("Sim"=memory.df[memory.df$NCells %in% max(memory.df$NCells), common.cols], 
+                                             "liver"=liver.memory.df[liver.memory.df$NCells %in% max(liver.memory.df$NCells), common.cols],
+                                             "thymus"=thymus.memory.df[thymus.memory.df$NCells %in% max(thymus.memory.df$NCells), common.cols],
+                                             "gast"=gast.memory.df[gast.memory.df$NCells %in% max(gast.memory.df$NCells), common.cols]))
+```
+
+
+```{r, warning=FALSE , message=FALSE}
+down.timing <- do.call(rbind.data.frame, 
+                      list("Sim"=time.df[!time.df$NCells %in% max(time.df$NCells), , drop=FALSE], 
+                           "liver"=liver.time.df[!liver.time.df$NCells %in% max(liver.time.df$NCells), , drop=FALSE], 
+                           "thymus"=thymus.time.df[!thymus.time.df$NCells %in% max(thymus.time.df$NCells), , drop=FALSE],
+                           "gast"=gast.time.df[!gast.time.df$NCells %in% max(gast.time.df$NCells), , drop=FALSE]))
+
+
+down.memory <- do.call(rbind.data.frame, list("Sim"=memory.df[!memory.df$NCells %in% max(memory.df$NCells), common.cols], 
+                                              "liver"=liver.memory.df[!liver.memory.df$NCells %in% max(liver.memory.df$NCells), common.cols],
+                                              "thymus"=thymus.memory.df[!thymus.memory.df$NCells %in% max(thymus.memory.df$NCells), common.cols],
+                                              "gast"=gast.memory.df[!gast.memory.df$NCells %in% max(gast.memory.df$NCells), common.cols]))
+```
+
+
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.timing, aes(x=NCells, y=Elapsed/60, 
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.timing, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Cells", y="Elapsed time (mins)") +
+    # scale_x_log10() +
+    # scale_y_log10() +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round(Elapsed/60, 2)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=25)
+
+ggsave("~/Dropbox/Milo/figures/All_timing.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_timing.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=NCells, y=Total.Mem/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round(Total.Mem/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=NCells, y=(Total.Mem-Mem.Obj)/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round((Total.Mem-Mem.Obj)/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=N.Nhoods, y=(Total.Mem-Mem.Obj)/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Neighbourhoods", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round((Total.Mem-Mem.Obj)/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-byNhood.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-byNhood.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+Is this about the neighbourhood size? I didn't record the average nhood size for my sins.
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=Median.Nhood.Size, y=(Total.Mem-Mem.Obj)/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="Median Nhood Size", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round((Total.Mem-Mem.Obj)/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-byNhoodSize.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-byNhoodSize.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=NCells, y=(Mem.Graph)/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round(Mem.Graph/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-buildGraph.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-buildGraph.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=NCells, y=(Mem.Nhoods)/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round(Mem.Nhoods/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-makeNhoods.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-makeNhoods.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=NCells, y=(Mem.Distance)/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round(Mem.Distance/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-calcNhoodDist.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-calcNhoodDist.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=NCells, y=(Mem.Count)/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round(Mem.Count/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-countCells.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-countCells.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=NCells, y=(Mem.Test)/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round(Mem.Test/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-testNhoods.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem_sansObj-testNhoods.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(all.memory, aes(x=NCells, y=(Mem.Obj)/(1024),
+                       shape=DataSet, colour=DataSet)) +
+    geom_point(data=down.memory, size=3,
+               colour='grey80', alpha=0.5) +
+    geom_point(size=5) +
+    theme_bw() +
+    scale_colour_npg() +
+    labs(x="#Cells", y="Total memory (MB)") +
+    theme(axis.text=element_text(size=16, colour='black'),
+          axis.title=element_text(size=18, colour='black'),
+          legend.title=element_text(size=18, colour='black'),
+          legend.text=element_text(size=16, colour='black')) +
+    guides(colour=guide_legend(override.aes=list(size=5))) +
+    geom_text_repel(aes(label=round(Mem.Obj/(1024), 1)), colour='black', size=5,
+                    point.padding=0.5,
+                    force=55)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem-ObjSize.png",
+       height=4.15, width=6.75, dpi=300)
+
+ggsave("~/Dropbox/Milo/figures/All_memory-TotalMem-ObjSize.pdf",
+       height=4.15, width=6.75, useDingbats=FALSE)
+```
 
 
 
