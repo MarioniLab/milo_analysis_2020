@@ -423,10 +423,10 @@ thymus.bee <- ggplot(mapping=aes(x=Cluster, y=logFC)) +
 
 thymus.arrow <- ggplot(orig.da, aes(x=Cluster, y=start, xend=Cluster, yend=end, colour=Direction)) +
     geom_segment() +
-    geom_segment(size=1, arrow=arrow(length=unit(0.1, "npc"), type="closed")) +
+    geom_segment(size=1.2, arrow=arrow(length=unit(0.1, "npc"), type="closed")) +
     coord_flip() +
     theme_bw() +
-    scale_colour_manual(values=c("blue", "red"), breaks=c("Up", "Down"),
+    scale_colour_manual(values=c(darken('blue'), darken('#ff0000')), breaks=c("Up", "Down"),
                         labels=c("Enriched with age", "Depleted with age")) +
     guides(colour=guide_legend(ncol=1, title="Baran-Gale et al.\nDA direction")) +
     facet_grid(Cluster~., scales="free_y", space="free") +
@@ -468,9 +468,11 @@ keep.genes <- rownames(thymus.mylo)[!grepl(rownames(thymus.mylo), pattern="(Gm)|
 
 thymus.markers <- findNhoodMarkers(thymus.mylo, thymus.res, 
                                    subset.nhoods=thymus.res$Cluster %in% c("Intertypical TEC"),
-                                   subset.row=keep.genes,
+                                   subset.row=keep.genes, return.groups=TRUE,
                                    da.fdr=0.1, overlap=10, compute.new=FALSE, gene.offset=TRUE)
 # thymus.markers$GeneID <- rownames(thymus.mylo):
+itec.groups <- thymus.markers$groups
+thymus.markers <- thymus.markers$dge
 thymus.markers$GeneID <- keep.genes
 head(thymus.markers)
 ```
