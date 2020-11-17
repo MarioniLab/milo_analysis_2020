@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.27)  16 NOV 2020 19:00
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.27)  17 NOV 2020 15:05
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -499,11 +499,11 @@ File: suppl_figs/suppl_fig5.pdf Graphic file (type pdf)
 <use suppl_figs/suppl_fig5.pdf>
 Package pdftex.def Info: suppl_figs/suppl_fig5.pdf  used on input line 156.
 (pdftex.def)             Requested size: 469.75635pt x 482.6603pt.
-<suppl_figs/suppl_fig6.pdf, id=67, 1373.13pt x 1156.32pt>
+<suppl_figs/suppl_fig6.pdf, id=67, 1445.4pt x 1156.32pt>
 File: suppl_figs/suppl_fig6.pdf Graphic file (type pdf)
 <use suppl_figs/suppl_fig6.pdf>
 Package pdftex.def Info: suppl_figs/suppl_fig6.pdf  used on input line 166.
-(pdftex.def)             Requested size: 469.74944pt x 395.57848pt.
+(pdftex.def)             Requested size: 469.74944pt x 375.79955pt.
 <suppl_figs/suppl_fig7.pdf, id=68, 735.61923pt x 930.28854pt>
 File: suppl_figs/suppl_fig7.pdf Graphic file (type pdf)
 <use suppl_figs/suppl_fig7.pdf>
@@ -527,7 +527,7 @@ Package rerunfilecheck Info: File `milo_supplement.out' has not changed.
 Here is how much of TeX's memory you used:
  11005 strings out of 481866
  156161 string characters out of 5931061
- 463575 words of memory out of 5000000
+ 463429 words of memory out of 5000000
  27078 multiletter control sequences out of 15000+600000
  596495 words of font info for 72 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
@@ -548,9 +548,9 @@ TeX/texmf-dist/fonts/type1/public/lm/lmr7.pfb></home/jovyan/.TinyTeX/texmf-dist
 /fonts/type1/public/lm/lmri10.pfb></home/jovyan/.TinyTeX/texmf-dist/fonts/type1
 /public/lm/lmsy10.pfb></home/jovyan/.TinyTeX/texmf-dist/fonts/type1/public/lm/l
 mtt10.pfb>
-Output written on milo_supplement.pdf (12 pages, 35386033 bytes).
+Output written on milo_supplement.pdf (12 pages, 35352841 bytes).
 PDF statistics:
- 962 PDF objects out of 1000 (max. 8388607)
+ 961 PDF objects out of 1000 (max. 8388607)
  567 compressed objects within 6 object streams
  56 named destinations out of 1000 (max. 500000)
  108 words of extra memory for PDF output out of 10000 (max. 10000000)
