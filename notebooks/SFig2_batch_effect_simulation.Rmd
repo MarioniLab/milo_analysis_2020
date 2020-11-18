@@ -5,6 +5,7 @@ output: html_notebook
 
 ```{r}
 library(miloR)
+library(dyntoy)
 library(tidyverse)
 ```
 
@@ -280,9 +281,6 @@ ggplot(da_res_mnn_cond_tech, aes(logFC, -log10(SpatialFDR))) +
 ```{r}
 myPlotNhoodGraph <- function(x, layout="UMAP", colour_by=NA, subset.nhoods=NULL, jitter=TRUE, ... ){
   ## Check for valid nhoodGraph object
-  if(!.valid_graph(nhoodGraph(x))){
-    stop("Not a valid Milo object - neighbourhood graph is missing. Please run buildNhoodGraph() first.")
-  }
   if (is.character(layout)) {
     if (!layout %in% names(reducedDims(x))) {
       stop(paste(layout, "isn't in readucedDim(x) - choose a different layout"))
@@ -323,8 +321,8 @@ myPlotNhoodGraph <- function(x, layout="UMAP", colour_by=NA, subset.nhoods=NULL,
   
   if (jitter){
     set.seed(42)
-    reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),1] <- jitter(reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),1], factor=400)
-    reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),2] <- jitter(reducedDim(x, redDim)[as.numeric(vertex_attr(nh_graph)$name),2], factor=400)
+    reducedDim(x, layout)[as.numeric(vertex_attr(nh_graph)$name),1] <- jitter(reducedDim(x, layout)[as.numeric(vertex_attr(nh_graph)$name),1], factor=400)
+    reducedDim(x, layout)[as.numeric(vertex_attr(nh_graph)$name),2] <- jitter(reducedDim(x, layout)[as.numeric(vertex_attr(nh_graph)$name),2], factor=400)
     # layout[,1] <- jitter(layout[,1], factor=400)
     # layout[,2] <- jitter(layout[,2], factor=400)
   }
@@ -344,7 +342,7 @@ myPlotNhoodGraph <- function(x, layout="UMAP", colour_by=NA, subset.nhoods=NULL,
 
   
   
-  pl <- ggraph(simplify(nh_graph), layout = layout) +
+  pl <- ggraph(igraph::simplify(nh_graph), layout = layout) +
     geom_edge_link0(aes(width = weight), edge_colour = "grey66", edge_alpha=0.2) +
     geom_node_point(aes(fill = colour_by, size = size), color="grey20", shape=21) +
     scale_size(range = c(0.5,2), name="Nhood size") +
@@ -365,9 +363,6 @@ myPlotNhoodGraph <- function(x, layout="UMAP", colour_by=NA, subset.nhoods=NULL,
 
 
 myPlotNhoodGraphDA <- function(x, milo_res, alpha=0.05, ... ){
-  if(!.valid_graph(nhoodGraph(x))){
-    stop("Not a valid Milo object - neighbourhood graph is missing. Please run buildNhoodGraph() first.")
-  }
   if (is.character(layout)) {
     if (!layout %in% names(reducedDims(x))) {
       stop(paste(layout, "is not in readucedDim(x) - choose a different layout"))
@@ -383,7 +378,7 @@ myPlotNhoodGraphDA <- function(x, milo_res, alpha=0.05, ... ){
   ## Plot logFC
   myPlotNhoodGraph(x, colour_by = "logFC", ... )
 }
-myPlotNhoodGraphDA(sim_milo_be_mnn, da_res_mnn_cond_tech, alpha = 0.1)
+
 ```
 
 
@@ -429,14 +424,14 @@ pan_2
 ```
 
 
-```{r}
-add_nhood_coldata_to_res(sim_milo_be_mnn, da_res_mnn_cond, "group_id") %>%
-  mutate(color=ifelse(group_id %in% da_groups, TRUE, FALSE)) %>%
-  ggplot( aes(logFC, -log10(SpatialFDR), color=color)) +
-  geom_point() +
-  ggtitle("MNN corrected - design = ~ condition")
+<!-- ```{r} -->
+<!-- add_nhood_coldata_to_res(sim_milo_be_mnn, da_res_mnn_cond, "group_id") %>% -->
+<!--   mutate(color=ifelse(group_id %in% da_groups, TRUE, FALSE)) %>% -->
+<!--   ggplot( aes(logFC, -log10(SpatialFDR), color=color)) + -->
+<!--   geom_point() + -->
+<!--   ggtitle("MNN corrected - design = ~ condition") -->
 
-```
+<!-- ``` -->
 
 
 
@@ -533,16 +528,21 @@ pl_right <- imap(res_ls, ~ .x %>%
   mutate(trueDA=factor(ifelse(trueDA=="TP", "is DA", "not DA"), levels=c("not DA", "is DA"))) %>%
   mutate(predDA=factor(ifelse(predDA=="Positive", "is DA", "not DA"), levels=c("not DA", "is DA"))) %>%
   mutate(design=factor(design, levels=c("~ condition", "~ batch + condition"))) %>%
-  ggplot(aes(trueDA, predDA, fill=n)) +
-  geom_tile() +
+  mutate(outline=ifelse(predDA==trueDA, 1, 0)) %>%
+  ggplot(aes(trueDA, predDA)) +
+  geom_tile(fill="grey98") +
   geom_text(aes(label=n), size=6) +
   facet_grid(dataset~design) +
   # coord_fixed() +
   ylab("Predicted") +
   xlab("True") +
-  scale_fill_gradient(low="grey98", high="red", name="# neighbourhoods") +
+  # scale_fill_manual(values=c(TRUE))
+  scale_fill_gradient(low="grey98", high="#FEE0D2") +
   theme_classic(base_size = 20) +
-  guides(fill = guide_colourbar(title.position="top", title.hjust = 0.5, barwidth = 10)) +
+  guides(
+    # fill = guide_colourbar(title.position="top", title.hjust = 0.5, barwidth = 10)
+    fill="none"
+    ) +
   theme(legend.position = "top", legend.text = element_blank(), legend.justification = 'center') 
 
 pl_right +
@@ -554,7 +554,7 @@ Assemble figure
 
 ```{r, fig.width=15, fig.height=6}
 (pan_1 | pan_2 | pl_right) + plot_layout(widths=c(1,1.1,0.8)) +
-  ggsave("~/milo_output/suppl_fig1.pdf", width = 18, height = 7.5)
+  ggsave("~/milo_analysis_2020/ms/supplement/suppl_figs/suppl_fig1.pdf", width = 18, height = 7.5)
 ```
   
 

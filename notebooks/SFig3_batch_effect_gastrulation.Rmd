@@ -48,8 +48,8 @@ embryo_milo_mnn <- embryo_milo_mnn[,apply(reducedDim(embryo_milo_mnn, "PCA"),1, 
 embryo_milo_uncor <- Milo(embryo_sce)
 
 ## Build KNNs
-embryo_milo_mnn <- buildGraph(embryo_milo_mnn, k = 30, d=30, seed=42)
-embryo_milo_uncor <- buildGraph(embryo_milo_uncor, k = 30, d=30, seed=42)
+embryo_milo_mnn <- buildGraph(embryo_milo_mnn, k = 30, d=30)
+embryo_milo_uncor <- buildGraph(embryo_milo_uncor, k = 30, d=30)
 
 embryo_milo_uncor <- scater::runUMAP(embryo_milo_uncor, pca=30, dimred="PCA")
 ```
@@ -342,13 +342,36 @@ saveRDS(embryo_milo_uncor, "~/EmbryoAtlas_uncorrected_milo.RDS")
 embryo_milo_mnn <- readRDS("~/EmbryoAtlas_MNN_milo.RDS")
 embryo_milo_uncor <- readRDS("~/EmbryoAtlas_uncorrected_milo.RDS")
 ```
-
-
-Visualize DA neighbourhoods
 ```{r}
-embryo_milo_mnn <- buildNhoodGraph(embryo_milo_mnn)
-embryo_milo_uncor <- buildNhoodGraph(embryo_milo_uncor)
+embryo_milo_mnn2 <- as(embryo_milo_mnn, "SingleCellExperiment")
+embryo_milo_mnn2 <- Milo(embryo_milo_mnn2)
+nhoods(embryo_milo_mnn2) <- nhoods(embryo_milo_mnn)
+nhoodCounts(embryo_milo_mnn2) <- nhoodCounts(embryo_milo_mnn)
+nhoodGraph(embryo_milo_mnn2) <- nhoodGraph(embryo_milo_mnn)
+nhoodIndex(embryo_milo_mnn2) <- nhoodIndex(embryo_milo_mnn)
+nhoodDistances(embryo_milo_mnn2) <- nhoodDistances(embryo_milo_mnn)
 ```
+
+<!-- ### Downstream analysis of results -->
+
+<!-- Using best batch correction setup -->
+<!-- ```{r, fig.height=10, fig.width=10} -->
+<!-- da_mnn_stage_batch <- annotateNhoods(embryo_milo_mnn, da_mnn_stage_batch, coldata_col = "celltype") -->
+<!-- plotDAbeeswarm(da_mnn_stage_batch, group.by = "celltype") -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- embryo_milo_mnn <- buildNhoodGraph(embryo_milo_mnn, overlap=100) -->
+<!-- ``` -->
+
+
+
+
+
+<!-- Visualize DA neighbourhoods -->
+<!-- ```{r} -->
+<!-- embryo_milo_mnn <- buildNhoodGraph(embryo_milo_mnn) -->
+<!-- embryo_milo_uncor <- buildNhoodGraph(embryo_milo_uncor) -->
+<!-- ``` -->
 
 
 
