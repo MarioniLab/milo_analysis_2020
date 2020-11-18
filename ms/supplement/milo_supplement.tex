@@ -77,7 +77,7 @@
 \title{Supplementary information for
 \textbf{Differential cell-state abundance testing using k-NN graphs with \emph{Milo}}}
 \author{Emma Dann, Michael D. Morgan}
-\date{17 November, 2020}
+\date{18 November, 2020}
 
 \begin{document}
 \maketitle
@@ -138,7 +138,7 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 \begin{figure}
 \centering
 \includegraphics{suppl_figs/suppl_fig4.pdf}
-\caption{\label{fig:sup-fig-4}\textbf{Graph-clustering does not faithfully capture simulated groups and differentially abundant regions in a simulated continuous trajectory.}
+\caption{\label{fig:sup-fig-4}\textbf{Graph-clustering does not faithfully capture simulated groups and differentially abundant subpopulations in a simulated continuous trajectory.}
 (A) A simulated linear trajectory of 2000 single-cells generated from 5 different groups, with cells assigned to either condition `A' (left) or condition `B' (right).
 (B) A Walktrap clustering of the data in (A) using the same k-NN graph. Cells are coloured by Walktrap cluster identity.
 (C) A Louvain clustering of the data in (A) using the same k-NN graph. Cells are coloured by the Louvain clustering identity.
@@ -163,6 +163,16 @@ Each panel shows a measure of method performance computed across 100 independent
 
 \begin{figure}
 \centering
+\includegraphics{suppl_figs/suppl_fig7.pdf}
+\caption{\label{fig:sup-fig-7}\textbf{Memory usage across the Milo analysis workflow}
+Total memory usage across the steps of the Milo analysis workflow in 4 data sets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denoted down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) k-NN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all data-sets for graph building and neighbourhood construction (k=30).}
+\end{figure}
+
+
+
+
+\begin{figure}
+\centering
 \includegraphics{suppl_figs/suppl_fig6.pdf}
 \caption{\label{fig:sup-fig-6}\textbf{Downstream analysis of disease-specific subpopulations in liver cirrhosis}
 (A) GO term enrichment analysis on marker genes of cirrhosis-enriched endothelia. The top 20 significant terms are shown.
@@ -175,16 +185,6 @@ Each panel shows a measure of method performance computed across 100 independent
 
 
 
-
-
-
-
-\begin{figure}
-\centering
-\includegraphics{suppl_figs/suppl_fig7.pdf}
-\caption{\label{fig:sup-fig-7}\textbf{Memory usage across the Milo analysis workflow}
-Total memory usage across the steps of the Milo analysis workflow in 4 data sets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denoted down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) k-NN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all data-sets for graph building and neighbourhood construction (k=30).}
-\end{figure}
 
 
 

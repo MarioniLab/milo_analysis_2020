@@ -63,6 +63,14 @@ knitr::include_graphics("suppl_figs/suppl_fig5.pdf", auto_pdf = TRUE)
 (ref:sup-fig5) **Comparison of Milo to alternative differential abundance methods**
 Each panel shows a measure of method performance computed across 100 independent simulations. Boxplots denote the median and interquartile range (IQR), with whiskers extending 1.5 x IQR; outliers are shown as individual points. Each analysis on each independent simulation used the same parameter values in Supplementary Table 1.
 
+```{r sup-fig-7, fig.pos="ht", fig.cap="(ref:sup-fig7)", echo=FALSE}
+knitr::include_graphics("suppl_figs/suppl_fig7.pdf", auto_pdf = TRUE)
+```
+
+(ref:sup-fig7) **Memory usage across the Milo analysis workflow**
+Total memory usage across the steps of the Milo analysis workflow in 4 data sets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denoted down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) k-NN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all data-sets for graph building and neighbourhood construction (k=30).
+
+
 ```{r sup-fig-6, fig.pos="ht", fig.cap="(ref:sup-fig6)", echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig6.pdf", auto_pdf = TRUE)
 ```
@@ -73,14 +81,6 @@ knitr::include_graphics("suppl_figs/suppl_fig6.pdf", auto_pdf = TRUE)
 (C) UMAP embedding and graph representation of neighbourhoods of 3369 cells from cholangiocytes lineage.
 (D) Volcano plot for DGE test on cholangiocytes subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
 (E) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.
-
-```{r sup-fig-7, fig.pos="ht", fig.cap="(ref:sup-fig7)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig7.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig7) **Memory usage across the Milo analysis workflow**
-Total memory usage across the steps of the Milo analysis workflow in 4 data sets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denoted down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) k-NN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all data-sets for graph building and neighbourhood construction (k=30).
-
 
 \newpage
 
