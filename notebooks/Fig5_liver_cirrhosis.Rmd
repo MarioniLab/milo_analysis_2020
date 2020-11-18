@@ -1,7 +1,8 @@
-
 ---
 title: "Milo: liver cirrhosis analysis"
-output: html_notebook
+output: 
+  html_notebook:
+    code_folding: hide
 ---
 
 ## Introduction
@@ -20,6 +21,8 @@ suppressPackageStartupMessages({
   library(SingleCellExperiment)
   library(patchwork)
   library(igraph)
+  library(RColorBrewer)
+  library(cowplot)
   })
 ```
 
@@ -31,15 +34,17 @@ We downloaded the dataset and annotations stored in Seurat object from [here](ht
 load("/nfs/team205/ed6/data/Ramachandran2019_liver/tissue.rdata")
 
 ## Convert to SingleCellExperiment
-liver_sce <- SingleCellExperiment(assay = list(counts=tissue@raw.data, logcounts=tissue@data), 
+liver_sce <- SingleCellExperiment(assay = list(counts=tissue@raw.data, logcounts=tissue@data),
                                   colData = tissue@meta.data)
 
 liver_sce
 ```
 
-## Preprocessing 
+## Preprocessing
 
 ### Feature selection
+
+Select highly variable genes
 
 ```{r}
 dec_liver <- modelGeneVar(liver_sce)
@@ -51,26 +56,20 @@ plot(fit_liver$mean, fit_liver$var, xlab="Mean of log-expression",
 hvgs <- getTopHVGs(dec_liver, n=3000)
 ```
 
-### Dimensionality reduction with PCA
-
-```{r, fig.height=14, fig.width=14}
-liver_sce <- runPCA(liver_sce, subset_row=hvgs, ncomponents=11)
-
-plotPCA(liver_sce, colour_by="condition", ncomponents=3)
-```
+### Dimensionality reduction
 
 ```{r, fig.height=8, fig.width=8}
+liver_sce <- runPCA(liver_sce, subset_row=hvgs, ncomponents=11)
 liver_sce <- runUMAP(liver_sce, dimred="PCA", ncomponents=2)
 
-scater::plotUMAP(liver_sce, colour_by="condition", point_alpha=1,  point_size=0.5) 
+scater::plotUMAP(liver_sce, colour_by="condition", point_alpha=1,  point_size=0.5)
 scater::plotUMAP(liver_sce, colour_by="dataset", point_alpha=0.3,  point_size=0.5)
 scater::plotUMAP(liver_sce, colour_by="annotation_lineage", point_alpha=0.3,  point_size=0.5, text_by='annotation_lineage')
-# scater::plotUMAP(liver_sce, colour_by='annotation_indepth', point_alpha=0.3,  point_size=0.5, text_by='annotation_indepth')
 ```
 
 Notably, this dataset doesn't appear to display a batch effect
 
-## DA analysis with Milo
+## Differential Abundance analysis with Milo
 
 We test for differential abundance between healthy and cirrhotic livers. We start by defining neighbourhoods with refined sampling on the KNN graph. We inspect the size of neighbourhoods.
 
@@ -85,10 +84,10 @@ liver_milo <- makeNhoods(liver_milo, k=30, d=11, prop = 0.05, refined=TRUE)
 plotNhoodSizeHist(liver_milo, bins=150)
 ```
 
-Then we make a design matrix for the differential test, assigning samples to conditions.
+Then we make a design matrix for the differential test, assigning samples to biological conditions.
 
 ```{r}
-liver_meta <- as.tibble(colData(liver_milo)[,c("dataset","condition")]) 
+liver_meta <- as.tibble(colData(liver_milo)[,c("dataset","condition")])
 liver_meta <- distinct(liver_meta) %>%
   mutate(condition=factor(condition, levels=c("Uninjured", "Cirrhotic"))) %>%
   column_to_rownames("dataset")
@@ -100,19 +99,8 @@ Now we can count cells in neighbourhoods and perform the DA test.
 liver_milo <- countCells(liver_milo, samples = "dataset", meta.data = data.frame(colData(liver_milo)[,c("dataset","condition")]) )
 
 liver_milo <- calcNhoodDistance(liver_milo, d=11)
-milo_res <- testNhoods(liver_milo, design = ~ condition, design.df = liver_meta, fdr.weighting = "k-distance")
-```
-
-```{r}
-## Save milo object and results
-saveRDS(liver_milo,"/nfs/team205/ed6/data/Ramachandran2019_liver/tissue_milo.RDS")
-saveRDS(liver_milo,"~/liver_milo_20201008.RDS")
-write_csv(milo_res, "/nfs/team205/ed6/data/Ramachandran2019_liver/milo_results.csv")
-write_csv(milo_res,"/nfs/team205/ed6/data/Ramachandran2019_liver/liver_results_20201008.csv")
-```
-```{r, echo=FALSE}
-liver_milo <- readRDS("~/liver_milo_20201008.RDS")
-milo_res <- read_csv("~/liver_results_20201008.csv")
+milo_res <- testNhoods(liver_milo, design = ~ condition, design.df = liver_meta, 
+                       fdr.weighting = "k-distance")
 ```
 
 ## Exploration of DA results
@@ -121,13 +109,13 @@ We can start by looking at some basic stats
 
 ```{r}
 pval_hist <- milo_res %>%
-  ggplot(aes(PValue)) + 
+  ggplot(aes(PValue)) +
   geom_histogram(bins=50) +
   theme_bw(base_size=14)
 
-volcano <- 
+volcano <-
   milo_res %>%
-  ggplot(aes(logFC, -log10(SpatialFDR))) + 
+  ggplot(aes(logFC, -log10(SpatialFDR))) +
   geom_point(size=0.4, alpha=0.2) +
   geom_hline(yintercept = -log10(0.1)) +
   xlab("log-Fold Change") +
@@ -137,6 +125,7 @@ pval_hist + volcano
 ```
 
 The distribution of P-values looks sensible and from the volcano plot we can see that we have identified some DA neighbourhoods at 10% FDR.
+
 We can visualize DA neighbourhoods building an abstracted graph
 
 ```{r, fig.width=14, fig.height=10}
@@ -144,11 +133,26 @@ liver_milo <- buildNhoodGraph(liver_milo)
 plotNhoodGraphDA(liver_milo, milo_res, alpha = 0.05)
 ```
 
+```{r}
+## Save milo object and results
+saveRDS(liver_milo,"~/liver_milo_20201008.RDS")
+write_csv(milo_res,"/nfs/team205/ed6/data/Ramachandran2019_liver/liver_results_20201008.csv")
+```
+
+```{r}
+liver_milo <- readRDS("~/liver_milo_20201008.RDS")
+milo_res <- read_csv("/nfs/team205/ed6/data/Ramachandran2019_liver/liver_results_20201008.csv")
+
+## Load hvgs 
+hvgs <- scan("~/liver_milo_hvgs.txt", "")
+```
+
+
 Making figures for the manuscript
 
 ```{r, fig.width=15, fig.height=10}
 colourCount = length(unique(liver_milo$annotation_lineage))
-getPalette = colorRampPalette(brewer.pal(9, "Spectral"))
+getPalette = colorRampPalette(brewer.pal(9, "Set2"))
 
 umap_df <- data.frame(reducedDim(liver_milo, "UMAP"))
 colnames(umap_df) <- c("UMAP_1", "UMAP_2")
@@ -156,8 +160,8 @@ colnames(umap_df) <- c("UMAP_1", "UMAP_2")
 umap1 <- cbind(umap_df, annotation_lineage=liver_milo$annotation_lineage) %>%
   ggplot(aes(UMAP_1, UMAP_2, color=as.character(annotation_lineage))) +
   geom_point(size=0.1, alpha=0.5) +
-  ggrepel::geom_text_repel(data = . %>% 
-              group_by(annotation_lineage) %>% 
+  ggrepel::geom_text_repel(data = . %>%
+              group_by(annotation_lineage) %>%
               summarise(UMAP_1=mean(UMAP_1), UMAP_2=mean(UMAP_2)),
             aes(label=annotation_lineage), color="black", size=6
             ) +
@@ -166,8 +170,7 @@ umap1 <- cbind(umap_df, annotation_lineage=liver_milo$annotation_lineage) %>%
   xlab("UMAP1") + ylab("UMAP2") +
   coord_fixed() +
   theme_classic(base_size = 22) +
-  theme(axis.text = element_blank(), axis.ticks = element_blank(),
-        legend.text = element_text(size=18), legend.title = element_text(size=20))
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
 
 umap2 <-
   cbind(umap_df, condition=as.character(liver_milo$condition)) %>%
@@ -178,46 +181,31 @@ umap2 <-
   coord_fixed() +
   guides(color='none') +
   facet_wrap(condition~., ncol=1) +
-  theme_nothing() +
+  theme_nothing(font_size = 22) +
   theme(axis.text = element_blank(), axis.ticks = element_blank(), legend.position=c(0.9,0.9),
-        strip.background = element_rect(color=NA), strip.text = element_text(size=16))
+        strip.background = element_rect(color=NA), strip.text = element_text(size=22))
 
 nh_graph_pl <- plotNhoodGraphDA(liver_milo, milo_res, alpha = 0.1) +
   theme(legend.text = element_text(size=22), legend.title = element_text(size=24)) +
   coord_fixed()
 
-fig4_top <- (umap1 | umap2 | nh_graph_pl) + 
-  plot_layout(widths = c(3,1,3)) 
-
-fig4_top +
-  ggsave("~/milo_output/liver_embedding.pdf", width=15, height = 10)
+fig4_top <- (umap1 | umap2 | nh_graph_pl) +
+  plot_layout(widths = c(3,1,3))
 ```
+
+### Explore DA neighbourhoods by cell type
 
 Next, we can check the cell types where we observe most differences between healthy and cirrhotic cells, by taking the most frequent cell type in each neighbourhood.
 
 ```{r, fig.width=9, fig.height=10}
-#' Add annotation of most frequent cell type per nhood to milo results table
-add_nhood_coldata_to_res <- function(milo, milo_res, coldata_col){
-  nhood_counts <- sapply(seq_along(nhoods(milo)), function(x) table(colData(milo)[as.vector(nhoods(milo)[[x]]), coldata_col]))
-  nhood_counts <- t(nhood_counts)
-  rownames(nhood_counts) <- seq_along(nhoods(milo))
-  max_val <- apply(nhood_counts, 1, function(x) colnames(nhood_counts)[which.max(x)])
-  max_frac <- apply(nhood_counts, 1, function(x) max(x)/sum(x))
-  milo_res[coldata_col] <- max_val
-  milo_res[paste0(coldata_col, "_fraction")] <- max_frac
-  return(milo_res)
-}
-
-milo_res <- add_nhood_coldata_to_res(liver_milo, milo_res, "annotation_indepth")
-milo_res$annotation_lineage.x <- NULL
-milo_res$annotation_lineage.y <- NULL
-milo_res$annotation_lineage <- NULL
+# Add annotation of most frequent cell type per nhood to milo results table
+milo_res <- annotateNhoods(liver_milo, milo_res, "annotation_indepth")
 anno_df <- data.frame(liver_milo@colData) %>%
   distinct(annotation_lineage, annotation_indepth)
 milo_res <- left_join(milo_res, anno_df, by="annotation_indepth")
 ```
 
-We first check that neighbourhoods are quite homogeneous
+We first check that neighbourhoods are sufficiently homogeneous
 
 ```{r}
 frac_hist <- ggplot(milo_res, aes(annotation_indepth_fraction)) +
@@ -229,9 +217,10 @@ frac_hist <- ggplot(milo_res, aes(annotation_indepth_fraction)) +
 frac_hist
 ```
 
-I can recover all the clusters where DA was detected in the original paper (see all the barplots for each lineage) and more! All in a single analysis, and without knowing where the subclusters are. Let's bear in mind that positive logFC --> more cirrhotic, negative logFC ---> more healthy
+I can recover all the clusters where DA was detected in the original paper
 
-```{r, fig.width=10, fig.height=10}
+```{r, fig.width=10, fig.height=10, warning=FALSE, message=FALSE}
+group.by = "annotation_indepth"
 paper_DA <- list(cirrhotic=c("MPs (4)","MPs (5)",
                              "Endothelia (6)", "Endothelia (7)",
                              "Mes (3)",
@@ -259,7 +248,7 @@ pl1 <- milo_res %>%
   ggplot(aes(annotation_indepth, logFC, color=logFC_color)) +
   scale_color_gradient2() +
   guides(color="none") +
-  xlab("annotation") + ylab("Log Fold Change") +
+  xlab(group.by) + ylab("Log Fold Change") +
   ggbeeswarm::geom_quasirandom(alpha=1) +
   coord_flip() +
   facet_grid(annotation_lineage~., scales="free", space="free") +
@@ -280,10 +269,10 @@ pl2 <- milo_res %>%
   coord_flip() +
   xlab("annotation") +
   facet_grid(annotation_lineage~.,
-    # annotation_lineage~"Ramachandran et al.\nDA predictions", 
+    # annotation_lineage~"Ramachandran et al.\nDA predictions",
              scales="free", space="free") +
   # guides(color="none") +
-  scale_color_brewer(palette="Set1", direction = -1, 
+  scale_color_brewer(palette="Set1", direction = -1,
                      labels=c("enriched in cirrhotic", "enriched in healthy"),
                      na.translate = F,
                      name="Ramachandran et al.\nDA predictions") +
@@ -295,19 +284,21 @@ pl2 <- milo_res %>%
         axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank(),
         legend.position = "bottom")
 
-fig4_bleft <- (pl2 + pl1 + 
-  plot_layout(widths=c(1,10), guides = "collect") & theme(legend.position = 'top', legend.justification = 0)) 
+fig4_bleft <- (pl2 + pl1 +
+  plot_layout(widths=c(1,10), guides = "collect") & theme(legend.position = 'top', legend.justification = 0))
 
 fig4_bleft +
   ggsave("~/milo_output/liver_DAcomparison.pdf", width=8, height = 13)
 ```
 
-## Close-up on Endothelial lineage
+### Close-up on Endothelial lineage
 
-```{r, fig.width=10, fig.height=8}
-# endo_milo <- scater::runPCA(endo_milo, subset_row=endo_hvgs, ncomponents=11)
+```{r}
 endo_milo <- scater::runUMAP(liver_milo[,liver_milo$annotation_lineage=="Endothelia"],  dimred='PCA')
+plotUMAP(endo_milo, colour_by = "annotation_indepth")
+```
 
+```{r}
 umap_df <- data.frame(reducedDim(endo_milo, "UMAP"))
 colnames(umap_df) <- c("UMAP_1", "UMAP_2")
 
@@ -321,22 +312,19 @@ endo_umap <- cbind(umap_df, condition=endo_milo$condition) %>%
   facet_wrap(condition~., ncol=1) +
   theme_nothing() +
   theme(axis.text = element_blank(), axis.ticks = element_blank(), legend.position=c(0.9,0.9),
-        strip.background = element_rect(color=NA), strip.text = element_text(size=16))
-
-endo_umap
+        strip.background = element_rect(color=NA), strip.text = element_text(size=22))
 ```
 
-```{r, fig.width=8, fig.height=4}
+```{r, fig.width=8, fig.height=4, message=FALSE, warning=FALSE}
 liver_milo2 <- liver_milo
 subset.nhoods <- str_detect(milo_res$annotation_indepth, "Endo")
 reducedDim(liver_milo2, "UMAP")[colnames(endo_milo),] <- reducedDim(endo_milo, "UMAP") 
-
 
 endo_gr <-
   plotNhoodGraphDA(
   liver_milo2, milo_res,
   subset.nhoods = subset.nhoods, 
-  # subset.nhoods =subset.nhoods[1:(length(subset.nhoods)-1)], 
+  # ) =)[1:(length()-1)], 
   alpha = 0.1
   )  +
    theme(legend.text = element_text(size=22), legend.title = element_text(size=24))
@@ -345,60 +333,318 @@ fig4_bright1 <- ((endo_umap + endo_gr ) +
   plot_layout(widths = c(1,2), 
                 guides = "collect"
                 )) 
+fig4_bright1
+```
 
-fig4_bright1 +
-  ggsave("~/milo_output/liver_endoGraph.pdf", width=9, height = 5)  
+### Close-up on Cholangiocytes
+
+```{r}
+chol_milo <- scater::runUMAP(liver_milo[,liver_milo$annotation_lineage=="Cholangiocytes"],  dimred='PCA')
+plotUMAP(chol_milo, colour_by = "annotation_indepth")
+
+plotUMAP(chol_milo, colour_by = "percent.mito")
+```
+
+Filter out cells that show contamination from immune cells (expression of immune markers)
+
+```{r}
+keep <- logcounts(chol_milo)["CD19",] == 0 | logcounts(chol_milo)["MS4A1",] == 0
+chol_milo <- chol_milo[,keep]
+chol_milo <- scater::runUMAP(chol_milo,  dimred='PCA')
+
+plotUMAP(chol_milo, colour_by = "annotation_indepth")
+```
+
+```{r, fig.width=10, fig.height=8}
+umap_df <- data.frame(reducedDim(chol_milo, "UMAP"))
+colnames(umap_df) <- c("UMAP_1", "UMAP_2")
+
+chol_umap <- cbind(umap_df, condition=chol_milo$condition) %>%
+   ggplot(aes(UMAP_1, UMAP_2, color=condition)) +
+  geom_point(size=0.3, alpha=0.5) +
+  scale_color_brewer(palette="Set1", name='') +
+  xlab("UMAP1") + ylab("UMAP2") +
+  coord_fixed() +
+  guides(color="none") +
+  facet_wrap(condition~., ncol=1) +
+  theme_nothing() +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(), legend.position=c(0.9,0.9),
+        strip.background = element_rect(color=NA), strip.text = element_text(size=22))
+
+chol_umap
+```
+
+```{r, fig.width=8, fig.height=4, warning=FALSE, message=FALSE}
+liver_milo2 <- liver_milo
+subset.nhoods <- str_detect(milo_res$annotation_indepth, "Cholangio")
+reducedDim(liver_milo2, "UMAP")[colnames(chol_milo),] <- reducedDim(chol_milo, "UMAP") 
+
+chol_gr <-
+  plotNhoodGraphDA(
+  liver_milo2, milo_res,
+  subset.nhoods = subset.nhoods, 
+  # ) =)[1:(length()-1)], 
+  alpha = 0.1
+  )  +
+   theme(legend.text = element_text(size=22), legend.title = element_text(size=24))
+  
+(chol_umap + chol_gr ) + 
+  plot_layout(widths = c(1,2), 
+                guides = "collect"
+                )
+# fig4_bright1 +
+#   ggsave("~/milo_output/liver_endoGraph.pdf", width=9, height = 5)  
+
+```
+
+### Differential Gene Expression analysis
+
+In a subset of lineages, we want to test for differential expression between neighbourhoods enriched in cirrhotic cells and neighbourhoods enriched
+
+
+(Now coded in `miloR\R\testDiffExp.R`)
+
+```{r}
+.perform_counts_dge <- function(exprs.data, test.model, gene.offset=gene.offset,
+                                model.contrasts=NULL, n.coef=NULL){
+
+    i.dge <- DGEList(counts=exprs.data,
+                     lib.size=log(colSums(exprs.data)))
+
+    if(isTRUE(gene.offset)){
+        n.gene <- apply(exprs.data, 2, function(X) sum(X > 0))
+        if(ncol(test.model) == 2){
+            test.model <- cbind(test.model, n.gene)
+            colnames(test.model) <- c(colnames(test.model)[1:2], "NGenes")
+        } else if (ncol(test.model) > 2){
+            test.model <- cbind(test.model[, 1], n.gene, test.model[, c(2:ncol(test.model))])
+            colnames(test.model) <- c(colnames(test.model)[1], "NGenes", colnames(test.model[, c(2:ncol(test.model))]))
+        } else{
+            if(ncol(test.model) < 2){
+                warning("Only one column in model matrix - must have at least 2. gene.offset forced to  FALSE")
+            }
+        }
+    }
+
+    i.dge <- estimateDisp(i.dge, test.model)
+    i.fit <- glmQLFit(i.dge, test.model, robust=TRUE)
+
+    if(!is.null(model.contrasts)){
+        mod.constrast <- makeContrasts(contrasts=model.contrasts, levels=test.model)
+        i.res <- as.data.frame(topTags(glmQLFTest(i.fit, contrast=mod.constrast),
+                                       sort.by='none', n=Inf))
+    } else{
+        if(is.null(n.coef)){
+            n.coef <- ncol(test.model)
+        }
+        i.res <- as.data.frame(topTags(glmQLFTest(i.fit, coef=n.coef), sort.by='none', n=Inf))
+    }
+    return(i.res)
+}
+
+```
+
+Add nhood expression to speed-up plotting of heatmaps
+```{r}
+liver_milo <- calcNhoodExpression(liver_milo, assay = "logcounts", subset.row = hvgs)
 ```
 
 
-
-### Differential expression between DA neighbourhoods
-
-I want to merge overlapping nhoods with significant DA and the same direction of logFC, and then test for differential expression between cells in up and down nhoods (I guess you could also do up or down VS all the rest). This allows us to perform a comparison without further clustering.
+## Endothelia
 
 ```{r}
-endo_milo <- liver_milo[,which(liver_milo$annotation_lineage=="Endothelia")]
-endo_res <- dplyr::filter(milo_res, annotation_lineage=="Endothelia")
+x = liver_milo
+da.res = milo_res
+subset.row = hvgs
+assay="counts"
+aggregate.samples = TRUE
+sample_col = "dataset"
+gene.offset=TRUE
 
-rownames(endo_res) <- rownames(milo_res)[which(milo_res$annotation_lineage=="Endothelia")]
+subset.nhoods = milo_res$annotation_lineage=="Endothelia"
+overlap=1
+
+nhood.adj <- nhoodAdjacency(liver_milo)[as.character(unlist(nhoodIndex(liver_milo)[subset.nhoods])),as.character(unlist(nhoodIndex(liver_milo)[subset.nhoods]))]
+
+nhood.adj[which(milo_res[subset.nhoods, "logFC"] > 0),which(milo_res[subset.nhoods, "logFC"] < 0)] <- 0
+nhood.adj[which(milo_res[subset.nhoods, "logFC"] < 0),which(milo_res[subset.nhoods, "logFC"] > 0)] <- 0
+
+nhood.adj[nhood.adj < overlap] <- 0 
+g <- graph_from_adjacency_matrix(nhood.adj)
+nhs.da.gr <- components(g)$membership
+
+
+nhood.gr <- unique(nhs.da.gr)
+# perform DGE _within_ each group of cells using the input design matrix
+message(paste0("Nhoods aggregated into ", length(nhood.gr), " groups"))
+
+fake.meta <- data.frame("CellID"=colnames(x), "Nhood.Group"=rep(NA, ncol(x)))
+rownames(fake.meta) <- fake.meta$CellID
+
+# do we want to allow cells to be members of multiple groups? This will create
+# chaos for the LM as there will be a dependency structure comparing 2 different
+# groups that contain overlapping cells.
+# this approach means that the latter group takes precedent.
+# maybe exclude the cells that fall into separate groups?
+for(i in seq_along(nhood.gr)){
+    nhood.x <- nhs.da.gr == nhood.gr[i]
+    # get the nhoods
+    nhs <- nhoods(x)
+    if(!is.null(subset.nhoods)){
+        nhs <- nhs[subset.nhoods]
+    }
+
+    if(!any(is.na(fake.meta[unlist(nhs[nhood.x]),]$Nhood.Group))){
+        fake.meta[unlist(nhs[nhood.x]),]$Nhood.Group[!is.na(fake.meta[unlist(nhs[nhood.x]),]$Nhood.Group)] <- NA
+        } else{
+            fake.meta[unlist(nhs[nhood.x]),]$Nhood.Group <- nhood.gr[i]
+        }
+}
+
+# only compare against the other DA neighbourhoods
+x <- x[, !is.na(fake.meta$Nhood.Group)]
+fake.meta <- fake.meta[!is.na(fake.meta$Nhood.Group), ]
+
+if(!is.null(subset.row)){
+    x <- x[subset.row, , drop=FALSE]
+}
+
+exprs <- assay(x, assay)
+
+marker.list <- list()
+i.contrast <- c("TestTest - TestRef") # always use contrasts for this
+
+    # if there is only 1 group, then need to make sure that all neighbourhoods
+    # are not in this group - otherwise can't do any DGE testing
+    if(length(nhood.gr) == 1){
+        if(sum(fake.meta$Nhood.Group == nhood.gr[1]) == nrow(fake.meta)){
+            warning("All graph neighbourhoods are in the same group - cannot perform DGE testing. Returning NULL")
+            return(NULL)
+        }
+    }
+    
+    ## Aggregate expression by sample
+    # To avoid treating cells as independent replicates
+    if (isTRUE(aggregate.samples)) {
+        fake.meta[,"sample_id"] <- colData(x)[[sample_col]]
+        fake.meta[,'sample_group'] <- paste(fake.meta[,"sample_id"], fake.meta[,"Nhood.Group"], sep="_")
+        
+        sample_gr_mat <- matrix(0, nrow=nrow(fake.meta), ncol=length(unique(fake.meta$sample_group)))
+        colnames(sample_gr_mat) <- unique(fake.meta$sample_group)
+        rownames(sample_gr_mat) <- rownames(fake.meta)
+        
+        for (s in colnames(sample_gr_mat)) {
+            sample_gr_mat[which(fake.meta$sample_group == s),s] <- 1  
+        }
+        
+        ## Summarise expression by sample
+        exprs_smp <- matrix(0, nrow=nrow(exprs), ncol=ncol(sample_gr_mat))
+        if (assay=='counts') {
+            summFunc <- rowSums
+        } else {
+            summFunc <- rowMeans
+        }
+        
+        for (i in 1:ncol(sample_gr_mat)){
+            if (sum(sample_gr_mat[,i]) > 1) {
+                exprs_smp[,i] <- summFunc(exprs[,which(sample_gr_mat[,i] > 0)])  
+            } else {
+                exprs_smp[,i] <- exprs[,which(sample_gr_mat[,i] > 0)]
+            }
+        }
+        rownames(exprs_smp) <- rownames(exprs)
+        colnames(exprs_smp) <- colnames(sample_gr_mat)
+        
+        smp_meta <- distinct(fake.meta, sample_group, Nhood.Group)
+        rownames(smp_meta) <- smp_meta[,"sample_group"]
+        
+        fake.meta <- smp_meta
+        exprs <- exprs_smp
+    }
+    
+    for(i in seq_along(nhood.gr)){
+        i.meta <- fake.meta
+        i.meta$Test <- "Ref"
+        i.meta$Test[fake.meta$Nhood.Group == nhood.gr[i]] <- "Test"
+
+        if(ncol(exprs) > 1 & nrow(i.meta) > 1){
+            i.design <- as.formula(" ~ 0 + Test")
+            i.model <- model.matrix(i.design, data=i.meta)
+            rownames(i.model) <- rownames(i.meta)
+        }
+
+        sink(file="/dev/null")
+        gc()
+        sink(file=NULL)
+
+        if(assay == "logcounts"){
+            i.res <- .perform_lognormal_dge(exprs, i.model, model.contrasts=i.contrast,
+                                            gene.offset=gene.offset)
+        } else if(assay == "counts"){
+            i.res <- .perform_counts_dge(exprs, i.model, model.contrasts=i.contrast,
+                                         gene.offset=gene.offset)
+            colnames(i.res)[ncol(i.res)] <- "adj.P.Val"
+        } else{
+            warning("Assay type is not counts or logcounts - assuming (log)-normal distribution. Use these results at your peril")
+            i.res <- .perform_lognormal_dge(exprs, i.model,
+                                            model.contrasts=i.contrast,
+                                            gene.offset=gene.offset)
+        }
+
+        i.res$adj.P.Val[is.na(i.res$adj.P.Val)] <- 1
+        i.res$logFC[is.infinite(i.res$logFC)] <- 0
+
+        i.res <- i.res[, c("logFC", "adj.P.Val")]
+        colnames(i.res) <- paste(colnames(i.res), nhood.gr[i], sep="_")
+        marker.list[[paste0(nhood.gr[i])]] <- i.res
+    }
+
+    marker.df <- do.call(cbind.data.frame, marker.list)
+    colnames(marker.df) <- gsub(colnames(marker.df), pattern="^[0-9]+\\.", replacement="")
+    marker.df$GeneID <- rownames(i.res)
 ```
 
-
 ```{r}
-dec_liver <- modelGeneVar(liver_milo)
-fit_liver <- metadata(dec_liver)
-hvgs <- getTopHVGs(dec_liver, n=3000)
-
-## keep HV genes expressed in at least 5% of endothelial cells
-endo_hvg_cnts <- counts(liver_milo)[hvgs,liver_milo$annotation_lineage=="Endothelia"]
-endo_hvgs <- hvgs[(rowSums(endo_hvg_cnts!=0) > (ncol(endo_hvg_cnts)/100)*5) & (rowSums(endo_hvg_cnts!=0) < (ncol(endo_hvg_cnts)/100)*80)] 
+marker.df[marker.df$adj.P.Val_2 < 0.1,]
 ```
 
+#### Visualize as volcano 
 
+```{r, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+marker.df %>%
+  mutate(label=ifelse((adj.P.Val_2) < 0.01, GeneID, NA)) %>%
+  ggplot(aes(logFC_2, -log10(adj.P.Val_2), 
+             # color=highlight
+             )) + 
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label=label)) +
+  xlab("logFC") + ylab("- log10(Adj. P value)") +
+  theme_bw(base_size = 22)
 
-```{r}
-# rownames(milo_res) <- names(nhoods(liver_milo)) ## If I don't set the nhood index as name the grouping doesn't
-nhood_markers <- findNhoodMarkers(liver_milo, milo_res, overlap=1, assay="logcounts", return.groups = TRUE,
-                                  subset.row = endo_hvgs,
-                                  subset.nhoods = str_detect(milo_res$annotation_indepth, "Endo"))
+marker.df %>%
+  mutate(label=ifelse((adj.P.Val_1) < 0.01, GeneID, NA)) %>%
+  ggplot(aes(logFC_1, -log10(adj.P.Val_1), 
+             # color=highlight
+             )) + 
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label=label)) +
+  xlab("logFC") + ylab("- log10(Adj. P value)") +
+  theme_bw(base_size = 22)
 
-
-sum(nhood_markers$dge$adj.P.Val_1 < 0.01)
+  
 ```
 
-```{r}
-marker_genes <- nhood_markers$dge %>%
-  dplyr::filter(adj.P.Val_1 < 0.01) %>%
+#### Visualize as heatmap 
+(gene expression values are scaled between 0 and 1 for each gene)
+
+```{r, fig.height=9, fig.width=12, message=FALSE, warning=FALSE}
+marker_genes <- marker.df %>%
+  dplyr::filter(adj.P.Val_2 < 0.1) %>%
   pull(GeneID)
-```
 
-```{r, fig.height=18, fig.width=12}
-liver_milo <- calcNhoodExpression(liver_milo, subset.row = marker_genes)
-
-highlight_genes <- c("PLVAP", "SOX14", "VWA1", "ACKR1",
-                     "CLEC4G", "CLEC4M", "STAB2", "MRC1",
-                     "CD14", "CCL21", "SOX17", "WNT2", "RSPO3", "AIF1L",
-                     "PROX1", "PDPN","CPE", "CD320")
+highlight_genes <- c("PLVAP", "VWA1", "ACKR1", "IL32",
+                     "CLEC4G", "CLEC4M", "FCN2", "FCN3",
+                     "LEF1")
 
 fig4_bbright <- plotNhoodExpressionDA(liver_milo, milo_res, marker_genes, cluster_features = TRUE, 
                       alpha = 0.1,
@@ -407,551 +653,366 @@ fig4_bbright <- plotNhoodExpressionDA(liver_milo, milo_res, marker_genes, cluste
                       highlight_features = highlight_genes, show_rownames = FALSE
                       ) +
   ylab("DE genes") +
-   theme(legend.text = element_text(size=22), legend.title = element_text(size=24))
+   theme(legend.text = element_text(size=22), legend.title = element_text(size=24)) +
+  plot_layout(heights = c(1,10)) & theme(legend.margin = margin(0,0,0,60), legend.background = element_blank())
+
+fig4_bbright
 ```
 
+### GO term analysis
 
-Customize plotting for paper figure
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# BiocManager::install('clusterProfiler')
+# BiocManager::install('msigdbr')
+library(clusterProfiler)
+library(msigdbr)
 
-```{r}
-x <- liver_milo
-da.res <- milo_res
+m_df <- msigdbr(species = "Homo sapiens")
+m_t2g <- msigdbr(species = "Homo sapiens", category = "C5", subcategory = "BP")  %>% 
+  dplyr::select(gs_name, gene_symbol)
 
-cluster_features = TRUE
-alpha = 0.1
-scale_to_1 = TRUE
-subset.nhoods = milo_res$annotation_lineage=="Endothelia"
-features <- marker_genes
+marker_genes_up <- marker.df %>%
+  dplyr::filter(adj.P.Val_2 < 0.1 & logFC_1 < 0) %>%
+  pull(GeneID)
 
-expr_mat <- nhoodExpression(x)[features,]
-colnames(expr_mat) <- 1:length(nhoods(x))
+marker_genes_down <- marker.df %>%
+  dplyr::filter(adj.P.Val_1 < 0.1 & logFC_1 < 0) %>%
+  pull(GeneID)
 
-## Get nhood expression matrix
-if (!is.null(subset.nhoods)) {
-  expr_mat <- expr_mat[,subset.nhoods, drop=FALSE]
-}
+em_up <- enricher(marker_genes_up, TERM2GENE=m_t2g, pAdjustMethod = "fdr", 
+                  universe = rownames(liver_milo)
+                  )
+em_down <- enricher(marker_genes_down, TERM2GENE=m_t2g, pAdjustMethod = "fdr", 
+                    universe = rownames(liver_milo)
+                    )
 
-if (!isFALSE(scale_to_1)) {
-  expr_mat <- t(apply(expr_mat, 1, function(x) (x - min(x))/(max(x)- min(x))))
-}
-
-rownames(expr_mat) <- sub(pattern = "-", replacement = ".", rownames(expr_mat)) ## To avoid problems when converting to data.frame
-
-pl_df <- data.frame(t(expr_mat)) %>%
-  rownames_to_column("Nhood") %>%
-  mutate(Nhood=as.double(Nhood)) %>%
-  left_join(da.res, by="Nhood") %>%
-  mutate(logFC_rank=percent_rank(logFC))
-
-## Top plot: nhoods ranked by DA log FC
-pl_top <- pl_df %>%
-  mutate(is_signif = ifelse(SpatialFDR < alpha, paste0("SpatialFDR < ", alpha), NA)) %>%
-  ggplot(aes(logFC_rank, logFC)) +
-  geom_hline(yintercept = 0, linetype=2) +
-  geom_point(size=0.2, color="grey") +
-  geom_point(data=. %>% dplyr::filter(!is.na(is_signif)), aes(color=is_signif), size=1) +
-  theme_bw(base_size=22) +
-  ylab("DA logFC") +
-  scale_color_manual(values="red", name="") +
-  guides(color=guide_legend(override.aes = list(size=2))) +
-  scale_x_continuous(expand = c(0.01, 0)) +
-  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank())
-
-## Bottom plot: gene expression heatmap
-if (isTRUE(cluster_features)) {
-  row.order <- hclust(dist(expr_mat))$order # clustering
-  ordered_features <- rownames(expr_mat)[row.order]
-} else {
-  ordered_features <- rownames(expr_mat)
-}
-
-
+em_res_up <- em_up@result[em_up@result$qvalue < 0.1,] %>%
+  dplyr::select(- c(Description))
+em_res_down <- em_down@result[em_down@result$qvalue < 0.1,] %>%
+  dplyr::select(- c(Description))
 ```
 
-
-```{r, fig.height=12, fig.width=10}
-# detach('package:EnsDb.Hsapiens.v86')
-# detach('package:ensembldb')
-
-highlight_genes <- c("PLVAP", "SOX14", "VWA1", "ACKR1",
-                     "CLEC4G", "CLEC4M", "STAB2", "MRC1",
-                     "CD14", "CCL21", "SOX17", "WNT2", "RSPO3", "AIF1L",
-                     "PROX1", "PDPN","CPE", "CD320")
-
-pl_bottom <- pl_df %>%
-  pivot_longer(cols=rownames(expr_mat), names_to='feature', values_to="avg_expr") %>%
-  mutate(feature=factor(feature, levels=ordered_features)) %>%
-  mutate(label=ifelse(feature %in% highlight_genes, as.character(feature), NA)) %>%
-  ggplot(aes(logFC_rank, feature, fill=avg_expr)) +
-  geom_tile() +
-  scale_fill_viridis_c(option="magma", name="Scaled \nexpression") +
-  xlab("Endothelial Neighbourhoods") + ylab("DE genes") +
-  scale_x_continuous(expand = c(0.01, 0),
-                     # limits = c(0, max(pl_df$logFC_rank) + 0.2)
-                     ) +
-  coord_cartesian(clip="off") +
-  ggrepel::geom_text_repel(data=. %>% dplyr::filter(!is.na(label)) %>%
-              group_by(label) %>%
-              summarise(logFC_rank=max(logFC_rank), avg_expr=mean(avg_expr), feature=dplyr::first(feature)),
-            aes(label=label, x=logFC_rank), size=7, xlim = c(max(pl_df$logFC_rank) + 0.01, max(pl_df$logFC_rank) + 0.02),
-            min.segment.length = 0, seed=42
-            ) +
-  theme_classic(base_size = 22) +
-  theme(axis.text.x = element_blank(), axis.line.x = element_blank(), axis.ticks.x = element_blank(),
-        axis.text.y = element_blank(), axis.line.y = element_blank(), axis.ticks.y = element_blank(),
-        panel.spacing = margin(2, 2, 2, 2, "cm"),
-        legend.margin=margin(0,0,0,0),
-        legend.box.margin=margin(10,10,10,10)
-        )
-
-## Assemble plot
-fig4_bbright <-  (pl_top / pl_bottom) + plot_layout(heights = c(1,4), guides = "collect") & 
-    theme(legend.justification=c(0, 1))
-fig4_bbright +  ggsave("~/milo_output/liver_DEG_heatmap.pdf", width=9, height = 9)
-
-```
-
-#### Quick GO term analysis
-
-```{r}
-# install.packages("enrichR")
-library(enrichR)
-
-dbs <- listEnrichrDbs()
-websiteLive <- TRUE
-if (is.null(dbs)) websiteLive <- FALSE
-if (websiteLive) head(dbs)
-
-dbs <- c("GO_Molecular_Function_2015", "GO_Cellular_Component_2015", "GO_Biological_Process_2015")
-go_marker_genes <- enrichr(marker_genes, dbs)
-go_all_genes <- enrichr(endo_hvgs, dbs)
-
-ref_terms <- go_all_genes$GO_Biological_Process_2015$Term[go_all_genes$GO_Biological_Process_2015$Adjusted.P.value < 0.01]
-
-go_plot <- go_marker_genes$GO_Biological_Process_2015[go_marker_genes$GO_Biological_Process_2015$Adjusted.P.value < 0.01,] %>%
-  dplyr::filter(!Term %in% ref_terms) %>%
-  top_n(30, -log10(Adjusted.P.value)) %>%
-  mutate(Term=factor(Term, levels=rev(unique(Term)))) %>%
-  ggplot(aes(Term, -log10(Adjusted.P.value))) +
+```{r, fig.height=8, fig.width=15, warning=FALSE, message=FALSE}
+go_endo_up <- em_res_up %>%
+  top_n(20, -log10(qvalue)) %>%
+  mutate(Term=factor(ID, levels=rev(unique(ID)))) %>%
+  ggplot(aes(Term, -log10(qvalue))) +
   geom_point() +
   coord_flip() +
   xlab("GO Biological Function") + ylab("-log10(Adj. p-value)") +
-  theme_bw(base_size=14) 
+  theme_bw(base_size=18) +
+  ggtitle("Cirrhotic endothelia")
 
-go_plot +
-  ggsave("~/milo_output/liver_endoDEG_GOenrich.pdf", width=9, height = 5)
+go_endo_down <- em_res_down %>%
+  top_n(20, -log10(qvalue)) %>%
+  mutate(ID=ifelse(ID=='GO_ANTIGEN_PROCESSING_AND_PRESENTATION_OF_PEPTIDE_OR_POLYSACCHARIDE_ANTIGEN_VIA_MHC_CLASS_II', "GO_ANTIGEN_PRESENTATION_VIA_MHC_CLASS_II", ID)) %>%
+  mutate(Term=factor(ID, levels=rev(unique(ID)))) %>%
+  ggplot(aes(Term, -log10(qvalue))) +
+  geom_point() +
+  coord_flip() +
+  xlab("GO Biological Function") + ylab("-log10(Adj. p-value)") +
+  theme_bw(base_size=18) +
+  ggtitle("Uninjured endothelia")
+
+go_endo_up
+go_endo_down
 ```
+
+
+```{r}
+em_res_up
+em_res_down
+```
+
+### Cholangiocytes
+```{r}
+x = liver_milo
+da.res = milo_res
+subset.row = hvgs
+assay="counts"
+aggregate.samples = TRUE
+sample_col = "dataset"
+gene.offset=TRUE
+
+subset.nhoods = milo_res$annotation_lineage=="Cholangiocytes"
+overlap=1
+
+nhood.adj <- nhoodAdjacency(liver_milo)[as.character(unlist(nhoodIndex(liver_milo)[subset.nhoods])),as.character(unlist(nhoodIndex(liver_milo)[subset.nhoods]))]
+
+nhood.adj[which(milo_res[subset.nhoods, "logFC"] > 0),which(milo_res[subset.nhoods, "logFC"] < 0)] <- 0
+nhood.adj[which(milo_res[subset.nhoods, "logFC"] < 0),which(milo_res[subset.nhoods, "logFC"] > 0)] <- 0
+
+nhood.adj[nhood.adj < overlap] <- 0 
+g <- graph_from_adjacency_matrix(nhood.adj)
+nhs.da.gr <- components(g)$membership
+
+
+nhood.gr <- unique(nhs.da.gr)
+# perform DGE _within_ each group of cells using the input design matrix
+message(paste0("Nhoods aggregated into ", length(nhood.gr), " groups"))
+
+fake.meta <- data.frame("CellID"=colnames(x), "Nhood.Group"=rep(NA, ncol(x)))
+rownames(fake.meta) <- fake.meta$CellID
+
+# do we want to allow cells to be members of multiple groups? This will create
+# chaos for the LM as there will be a dependency structure comparing 2 different
+# groups that contain overlapping cells.
+# this approach means that the latter group takes precedent.
+# maybe exclude the cells that fall into separate groups?
+for(i in seq_along(nhood.gr)){
+    nhood.x <- nhs.da.gr == nhood.gr[i]
+    # get the nhoods
+    nhs <- nhoods(x)
+    if(!is.null(subset.nhoods)){
+        nhs <- nhs[subset.nhoods]
+    }
+
+    if(!any(is.na(fake.meta[unlist(nhs[nhood.x]),]$Nhood.Group))){
+        fake.meta[unlist(nhs[nhood.x]),]$Nhood.Group[!is.na(fake.meta[unlist(nhs[nhood.x]),]$Nhood.Group)] <- NA
+        } else{
+            fake.meta[unlist(nhs[nhood.x]),]$Nhood.Group <- nhood.gr[i]
+        }
+}
+
+# only compare against the other DA neighbourhoods
+x <- x[, !is.na(fake.meta$Nhood.Group)]
+fake.meta <- fake.meta[!is.na(fake.meta$Nhood.Group), ]
+
+if(!is.null(subset.row)){
+    x <- x[subset.row, , drop=FALSE]
+}
+
+exprs <- assay(x, assay)
+
+marker.list <- list()
+i.contrast <- c("TestTest - TestRef") # always use contrasts for this
+
+    # if there is only 1 group, then need to make sure that all neighbourhoods
+    # are not in this group - otherwise can't do any DGE testing
+    if(length(nhood.gr) == 1){
+        if(sum(fake.meta$Nhood.Group == nhood.gr[1]) == nrow(fake.meta)){
+            warning("All graph neighbourhoods are in the same group - cannot perform DGE testing. Returning NULL")
+            return(NULL)
+        }
+    }
+    
+    ## Aggregate expression by sample
+    # To avoid treating cells as independent replicates
+    if (isTRUE(aggregate.samples)) {
+        fake.meta[,"sample_id"] <- colData(x)[[sample_col]]
+        fake.meta[,'sample_group'] <- paste(fake.meta[,"sample_id"], fake.meta[,"Nhood.Group"], sep="_")
+        
+        sample_gr_mat <- matrix(0, nrow=nrow(fake.meta), ncol=length(unique(fake.meta$sample_group)))
+        colnames(sample_gr_mat) <- unique(fake.meta$sample_group)
+        rownames(sample_gr_mat) <- rownames(fake.meta)
+        
+        for (s in colnames(sample_gr_mat)) {
+            sample_gr_mat[which(fake.meta$sample_group == s),s] <- 1  
+        }
+        
+        ## Summarise expression by sample
+        exprs_smp <- matrix(0, nrow=nrow(exprs), ncol=ncol(sample_gr_mat))
+        if (assay=='counts') {
+            summFunc <- rowSums
+        } else {
+            summFunc <- rowMeans
+        }
+        
+        for (i in 1:ncol(sample_gr_mat)){
+            if (sum(sample_gr_mat[,i]) > 1) {
+                exprs_smp[,i] <- summFunc(exprs[,which(sample_gr_mat[,i] > 0)])  
+            } else {
+                exprs_smp[,i] <- exprs[,which(sample_gr_mat[,i] > 0)]
+            }
+        }
+        rownames(exprs_smp) <- rownames(exprs)
+        colnames(exprs_smp) <- colnames(sample_gr_mat)
+        
+        smp_meta <- distinct(fake.meta, sample_group, Nhood.Group)
+        rownames(smp_meta) <- smp_meta[,"sample_group"]
+        
+        fake.meta <- smp_meta
+        exprs <- exprs_smp
+    }
+    
+    
+    for(i in seq_along(nhood.gr)){
+        i.meta <- fake.meta
+        i.meta$Test <- "Ref"
+        i.meta$Test[fake.meta$Nhood.Group == nhood.gr[i]] <- "Test"
+
+        if(ncol(exprs) > 1 & nrow(i.meta) > 1){
+            i.design <- as.formula(" ~ 0 + Test")
+            i.model <- model.matrix(i.design, data=i.meta)
+            rownames(i.model) <- rownames(i.meta)
+        }
+
+        sink(file="/dev/null")
+        gc()
+        sink(file=NULL)
+
+        if(assay == "logcounts"){
+            i.res <- .perform_lognormal_dge(exprs, i.model, model.contrasts=i.contrast,
+                                            gene.offset=gene.offset)
+        } else if(assay == "counts"){
+            i.res <- .perform_counts_dge(exprs, i.model, model.contrasts=i.contrast,
+                                         gene.offset=gene.offset)
+            colnames(i.res)[ncol(i.res)] <- "adj.P.Val"
+        } else{
+            warning("Assay type is not counts or logcounts - assuming (log)-normal distribution. Use these results at your peril")
+            i.res <- .perform_lognormal_dge(exprs, i.model,
+                                            model.contrasts=i.contrast,
+                                            gene.offset=gene.offset)
+        }
+
+        i.res$adj.P.Val[is.na(i.res$adj.P.Val)] <- 1
+        i.res$logFC[is.infinite(i.res$logFC)] <- 0
+
+        i.res <- i.res[, c("logFC", "adj.P.Val")]
+        colnames(i.res) <- paste(colnames(i.res), nhood.gr[i], sep="_")
+        marker.list[[paste0(nhood.gr[i])]] <- i.res
+    }
+
+    marker.df.chol <- do.call(cbind.data.frame, marker.list)
+    colnames(marker.df.chol) <- gsub(colnames(marker.df.chol), pattern="^[0-9]+\\.", replacement="")
+    marker.df.chol$GeneID <- rownames(i.res)
+```
+
+
+```{r}
+marker.df.chol[marker.df.chol$adj.P.Val_1 < 0.1,]
+```
+
+#### Visualize as volcano 
+
+```{r, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+volcano_chol <- marker.df.chol %>%
+  mutate(label=ifelse((adj.P.Val_1) < 0.1, GeneID, NA)) %>%
+  ggplot(aes(logFC_1, -log10(adj.P.Val_1), 
+             # color=highlight
+             )) + 
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label=label), segment.alpha = 0.3) +
+  xlab("logFC") + ylab("- log10(Adj. P value)") +
+  theme_bw(base_size = 22)
+
+volcano_chol  
+  
+```
+
+#### Visualize as heatmap 
+(gene expression values are scaled between 0 and 1 for each gene)
+
+```{r, fig.height=10, fig.width=9, message=FALSE, warning=FALSE}
+marker_genes_chol <- marker.df.chol %>%
+  dplyr::filter(adj.P.Val_1 < 0.1) %>%
+  pull(GeneID)
+
+highlight_genes <- c("PLVAP", "SOX14", "VWA1", "ACKR1", "IL32",
+                     "CLEC4G", "CLEC4M", "STAB2", "MRC1", "LYVE1",
+                     "CD14", "SOX17", "WNT2", "RSPO3", "AIF1L",
+                     "PROX1", "PDPN","CPE", "CD320", "BMPER")
+
+plotNhoodExpressionDA(liver_milo, milo_res, marker_genes_chol, cluster_features = TRUE, 
+                      alpha = 0.1,
+                      scale_to_1 = TRUE,
+                      subset.nhoods = milo_res$annotation_lineage=="Cholangiocytes",
+                      highlight_features = highlight_genes, show_rownames = TRUE
+                      ) +
+  ylab("DE genes") +
+   theme(legend.text = element_text(size=22), legend.title = element_text(size=24)) +
+  plot_layout(heights = c(1,10))
+
+
+```
+
+
+### GO term analysis
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+marker_genes_chol <- marker.df.chol %>%
+  dplyr::filter(adj.P.Val_2 < 0.1 & logFC_2 < 0) %>%
+  pull(GeneID)
+
+em_up_chol <- enricher(marker_genes_chol, TERM2GENE=m_t2g, pAdjustMethod = "fdr", 
+                  universe = rownames(liver_milo)
+                  )
+
+em_res_up_chol <- em_up_chol@result[em_up_chol@result$qvalue < 0.1,] %>%
+  dplyr::select(- c(Description))
+```
+
+```{r, fig.height=8, fig.width=15, warning=FALSE, message=FALSE}
+go_chol_up <- em_res_up_chol %>%
+  top_n(20, -log10(qvalue)) %>%
+  mutate(Term=factor(ID, levels=rev(unique(ID)))) %>%
+  ggplot(aes(Term, -log10(qvalue))) +
+  geom_point() +
+  coord_flip() +
+  xlab("GO Biological Function") + ylab("-log10(Adj. p-value)") +
+  theme_bw(base_size=18) +
+  ggtitle("Cirrhotic cholangiocytes")
+
+go_chol_up
+```
+
+```{r}
+em_res_up_chol
+```
+
+
+---
 
 Assemble figure
 ```{r, fig.height=25, fig.width=19}
-fig4_top /
-  ((fig4_bleft | (fig4_bright1 / fig4_bbright) + plot_layout(heights = c(1,1.5))) +
-  plot_layout(widths=c(1,1.2))) +
-  plot_layout(heights=c(1,1.5)) +
+fig4_bottom <- ((fig4_bleft + plot_layout()) |
+      ((fig4_bright1 + plot_layout(tag_level = 'keep')) / (fig4_bbright + plot_layout())) +
+      plot_layout(heights = c(1,1.6))
+   ) +
+  plot_layout(widths=c(1,1.2))
+
+(fig4_top / fig4_bottom) +
+  plot_layout(heights=c(1,1.8))  +
   ggsave("~/milo_output/fig4.pdf", height = 26, width = 22, useDingbats=FALSE)
-  
+  # ggsave("~/milo/ms/figures/figs/figure5.pdf", height = 26, width = 22, useDingbats=FALSE)
 ```
-
-
 
 Assemble supplementary figure
 
-```{r, fig.width=9, fig.height=7}
-p1 <- plot_grid(pval_hist, 
-                volcano + ylab("- log10(Spatial FDR)"), 
-                frac_hist, nrow=1,
-                labels = c("A", "B", "C")) 
-cowplot::plot_grid(p1, go_plot, rel_heights = c(1,1.5), ncol=1, labels = c("", "D")) +
+```{r, fig.width=25, fig.height=7}
+p1 <- plot_grid( go_endo_up+ theme(plot.title = element_text(hjust = 1),
+                                   axis.title.x = element_text(hjust = 1)), 
+                 go_endo_down+ theme(plot.title = element_text(hjust = 1),
+                                     axis.title.x = element_text(hjust = 1)), 
+                 label_size = 18,
+                 ncol=1,
+                 rel_heights = c(2,2),
+                labels = c("A", "B","C"))
+
+p1
+
+chol_emb <- (chol_umap + chol_gr ) + 
+  plot_layout(widths = c(1,2), 
+                guides = "collect"
+                )
+
+p3 <- plot_grid(plot_grid(chol_umap, chol_gr, nrow=1,rel_widths = c(1,2),
+                          label_size = 18,
+                labels = c("C","D")),
+                volcano_chol,
+                go_chol_up + theme(plot.title = element_text(hjust = 1),
+                                   axis.title.x = element_text(hjust = 1)), 
+                ncol=1,
+                rel_heights = c(1.5,1,1.5),
+                 label_size = 18,
+                labels=c("","E",'F'))
+
+plot_grid(p1, p3, ncol=2, rel_widths = c(1,1.2)) +
+# cowplot::plot_grid(p1,p2,go_chol_up,  rel_heights = c(1,1.5), ncol=1, labels = c("", "F")) +
+  ggsave("~/milo/ms/supplement/suppl_figs/suppl_fig6.pdf", height = 16, width=20)
+  ggsave("~/milo/ms/supplement/suppl_figs/suppl_fig6.png", height = 16, width=20)
   ggsave("~/milo_output/liver_supplementary.png", height = 7, width=8)
-  
+
 ```
-
-<!-- Let's check the genes identified as markers for the disease subtypes. Are they significantly differentially expressed between DA neighbourhoods? Yes they are! -->
-
-<!-- ```{r} -->
-<!-- disease_endo_markers <- c("ACKR1", 'CD34',"VWA1") -->
-
-<!-- data.frame(markers$negLogFC_2) %>% -->
-<!--   filter(FDR < 0.05) %>% -->
-<!--   .[disease_endo_markers,] -->
-
-<!-- data.frame(markers$negLogFC_1) %>% -->
-<!--   filter(FDR < 0.05) %>% -->
-<!--   .[disease_endo_markers,] -->
-<!-- ``` -->
-
-<!-- Visualize some of the markers that differentiate DA neighbourhoods, by plotting the percent of cells expressing each gene in a nhood. -->
-
-<!-- ```{r} -->
-<!-- ## Define plotting functions -->
-<!-- .calculate_nhood_perc_expression <- function(milo, nhoods, gene){ -->
-<!--   gene_cnts <- counts(milo)[gene,] -->
-<!--   perc_expr <- sapply(nhoods(milo)[nhoods], function(x) sum(gene_cnts[x]>0)/length(x)) -->
-<!--   perc_expr <- setNames(perc_expr, nhoods) -->
-<!--   return(perc_expr) -->
-<!--   } -->
-
-<!-- .plot_nhood_expression <- function(milo, nhoods, features){ -->
-<!--   perc_expr_mat <- sapply(features,  -->
-<!--                           function(x) .calculate_nhood_perc_expression(milo, nhoods, x)) -->
-
-<!--   pl_df <- data.frame(perc_expr_mat) %>% -->
-<!--     rownames_to_column("Nhood") %>% -->
-<!--     mutate(Nhood=as.double(Nhood)) %>% -->
-<!--     left_join(milo_res) %>% -->
-<!--     mutate(logFC_rank=rank(logFC))  -->
-
-<!--   pl_top <- pl_df %>% -->
-<!--       mutate(is_signif = ifelse(SpatialFDR < 0.1, "SpatialFDR < 0.1", NA)) %>% -->
-<!--       ggplot(aes(logFC_rank, logFC)) + -->
-<!--       geom_hline(yintercept = 0, linetype=2) + -->
-<!--       geom_point(size=0.2) + -->
-<!--       geom_point(data=.%>% filter(!is.na(is_signif)), aes(color=is_signif), size=0.5) + -->
-<!--       theme_bw() + -->
-<!--       scale_color_manual(values="red", name="") + -->
-<!--       theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank()) -->
-
-<!--   pl_bottom <- pl_df %>% -->
-<!--     pivot_longer(cols=features, names_to='feature', values_to="perc_expressed") %>% -->
-<!--     mutate(feature=factor(feature, levels=features)) %>% -->
-<!--     ggplot(aes(logFC_rank, feature, fill=perc_expressed)) +  -->
-<!--     geom_tile() + -->
-<!--     scale_fill_viridis_c(option="magma") + -->
-<!--     ggbio::theme_clear() -->
-
-<!--   (pl_top / pl_bottom) + plot_layout(heights = c(1,2)) -->
-<!-- } -->
-<!-- ``` -->
-
-
-<!-- ```{r, fig.width=10, fig.height=12} -->
-<!-- endo_nhoods <- endo_res %>%  pull(Nhood) -->
-
-<!-- ## Select genes and sort by AUC -->
-<!-- feats_neg2 <- -->
-<!--   data.frame(markers$negLogFC_2) %>%  -->
-<!--   top_n(50, - log10(FDR)) %>% -->
-<!--   arrange(AUC.posLogFC_1) %>% -->
-<!--   rownames() -->
-
-<!-- .plot_nhood_expression(liver_milo, endo_nhoods, features=feats) -->
-<!-- ``` -->
-
-<!-- As described in the paper, we have that genes associated with extracellular matrix organization (e.g. VIM, ) are over expressed  -->
-
-
-<!-- ```{r, fig.width=10, fig.height=7} -->
-<!-- ## Select genes and sort by AUC -->
-<!-- feats_neg1 <- -->
-<!--   data.frame(markers$negLogFC_1) %>%  -->
-<!--   top_n(50, - log10(FDR)) %>% -->
-<!--   arrange(AUC.posLogFC_1) %>% -->
-<!--   rownames() -->
-
-<!-- .plot_nhood_expression(liver_milo, endo_nhoods, features=feats) -->
-
-<!-- ``` -->
-
-<!-- ```{r, fig.width=10, fig.height=7} -->
-<!-- feats_neg1vsNeg2 <- -->
-<!--   data.frame(markers$negLogFC_1) %>%  -->
-<!--   top_n(50, - log10(FDR)) %>% -->
-<!--   arrange(AUC.negLogFC_2) %>% -->
-<!--   rownames() -->
-
-<!-- .plot_nhood_expression(liver_milo, endo_nhoods, features=feats_neg1vsNeg2) -->
-<!-- ``` -->
-
-
-<!-- Look just at Endothelia (5) where you have both positive and negative fold-changes -->
-
-<!-- ```{r} -->
-<!-- endo5_nhoods <- milo_res %>%  -->
-<!--   filter(annotation_indepth=="Endothelia (5)" & annotation_indepth_fraction > 0.7) %>% -->
-<!--   pull(Nhood) -->
-
-<!-- perc_expr_mat <- sapply(features,  -->
-<!--                         function(x) .calculate_nhood_perc_expression(liver_milo, endo5_nhoods, x)) -->
-
-<!-- pl_df <- data.frame(perc_expr_mat) %>% -->
-<!--   rownames_to_column("Nhood") %>% -->
-<!--   mutate(Nhood=as.double(Nhood)) %>% -->
-<!--   left_join(milo_res) %>% -->
-<!--   mutate(logFC_rank=rank(logFC))  -->
-
-<!-- pl_top <- pl_df %>% -->
-<!--     mutate(is_signif = ifelse(SpatialFDR < 0.1, "SpatialFDR < 0.1", NA)) %>% -->
-<!--     ggplot(aes(logFC_rank, logFC)) + -->
-<!--     geom_hline(yintercept = 0, linetype=2) + -->
-<!--     geom_point(size=0.2) + -->
-<!--     geom_point(data=.%>% filter(!is.na(is_signif)), aes(color=is_signif), size=0.5) + -->
-<!--     theme_bw() + -->
-<!--     scale_color_manual(values="red", name="") + -->
-<!--     theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank()) -->
-
-<!-- pl_bottom <- pl_df %>% -->
-<!--   pivot_longer(cols=features, names_to='feature', values_to="perc_expressed") %>% -->
-<!--   ggplot(aes(logFC_rank, feature, fill=perc_expressed)) +  -->
-<!--   geom_tile() + -->
-<!--   scale_fill_viridis_c(option="magma") + -->
-<!--   theme_clear() -->
-
-<!-- (pl_top / pl_bottom) + plot_layout(heights = c(1,2)) -->
-<!-- ``` -->
-
-<!-- How to find association de novo in Endo 5? -->
-
-<!-- ```{r, fig.height=8, fig.width=8} -->
-<!-- ## Find most highly variable genes in this cluster -->
-<!-- endo5_milo <- liver_milo[,which(colData(liver_milo)[["annotation_indepth"]]=="Endothelia (5)")] -->
-<!-- dec_endo5 <- modelGeneVar(endo5_milo) -->
-<!-- endo5_hvgs <- getTopHVGs(dec_endo5, n=1000) -->
-
-<!-- perc_expr_mat <- sapply(endo5_hvgs, function(x) .calculate_nhood_perc_expression(liver_milo, endo5_nhoods, x)) -->
-
-<!-- milo_res_endo5 <- milo_res[which(milo_res$Nhood %in% endo5_nhoods),] -->
-
-<!-- fc_cor <- apply(perc_expr_mat, 2, function(x) Hmisc::rcorr(x, milo_res_endo5$logFC)$r[1,2]) -->
-<!-- fc_cor_pval <- apply(perc_expr_mat, 2, function(x) Hmisc::rcorr(x, milo_res_endo5$logFC)$P[1,2]) -->
-
-<!-- cor_feats <- names(which(abs(fc_cor) > 0.6 & abs(fc_cor_pval) < 0.05)) -->
-<!-- cor_feats_ordered <- cor_feats[order(fc_cor[cor_feats])] -->
-
-<!-- pl_df <- data.frame(perc_expr_mat[,cor_feats]) %>% -->
-<!--   rownames_to_column("Nhood") %>% -->
-<!--   mutate(Nhood=as.double(Nhood)) %>% -->
-<!--   left_join(milo_res) %>% -->
-<!--   mutate(logFC_rank=rank(logFC))  -->
-
-<!-- pl_top <- pl_df %>% -->
-<!--     mutate(is_signif = ifelse(SpatialFDR < 0.1, "SpatialFDR < 0.1", NA)) %>% -->
-<!--     ggplot(aes(logFC_rank, logFC)) + -->
-<!--     geom_hline(yintercept = 0, linetype=2) + -->
-<!--     geom_point(size=0.2) + -->
-<!--     geom_point(data=.%>% filter(!is.na(is_signif)), aes(color=is_signif), size=0.5) + -->
-<!--     theme_bw() + -->
-<!--     scale_color_manual(values="red", name="") + -->
-<!--     theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank()) -->
-
-<!-- pl_bottom <- pl_df %>% -->
-<!--   pivot_longer(cols=str_replace(cor_feats_ordered, "-", "."), names_to='feature', values_to="perc_expressed") %>% -->
-<!--   mutate(feature=factor(feature, levels=str_replace(cor_feats_ordered, "-", "."))) %>% -->
-<!--   ggplot(aes(logFC_rank, feature, fill=perc_expressed)) +  -->
-<!--   geom_tile() + -->
-<!--   scale_fill_viridis_c(option="magma") + -->
-<!--   theme_clear() -->
-
-<!-- (pl_top / pl_bottom) + plot_layout(heights = c(1,2)) -->
-<!-- ``` -->
-
-
-
-<!-- ```{r} -->
-<!-- ## Run common PCA -->
-<!-- merged_cnts <- cbind(nhoodExpression(endo_milo), logcounts(endo_milo)[hvgs,]) -->
-<!-- merged_cnts_scaled <- t(scale(t(merged_cnts))) -->
-<!-- merged_pca <- BiocSingular::runPCA(t(merged_cnts_scaled), rank=30, center=FALSE) -->
-<!-- pca_mat <- rbind(merged_pca$x[(ncol(endo_milo)+1):(ncol(endo_milo)+(length(nhoods(endo_milo)))),], merged_pca$x[colnames(endo_milo),]) -->
-<!-- ## Add to slot nhoodsReducedDim -->
-<!-- nhoodReducedDim(endo_milo, "PCA") <- pca_mat -->
-
-<!-- ## Run UMAP on joint PCA -->
-<!-- umap_out <- uwot::umap(nhoodReducedDim(endo_milo, "PCA"), n_neighbors = 20, n_components = 2, scale=FALSE) -->
-<!-- colnames(umap_out) <- c("UMAP_1", "UMAP_2") -->
-<!-- nhoodReducedDim(endo_milo, "UMAP") <- umap_out -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- split_by=NULL -->
-<!-- ## Join test results and dimensionality reductions -->
-<!-- rdim_df <- data.frame(nhoodReducedDim(endo_milo, "UMAP")[,c(1,2)]) -->
-<!-- colnames(rdim_df) <- c('X','Y') -->
-
-<!-- n_nhoods <- length(nhoods(endo_milo)) -->
-<!-- rdim_df[,"Nhood"] <- ifelse(1:nrow(rdim_df) %in% c(1:n_nhoods), c(1:n_nhoods), NA) -->
-<!-- viz_df  <- left_join(rdim_df, milo_res[which(milo_res$annotation_lineage=="Endothelia"),], by="Nhood") -->
-<!-- viz_df[["nhIndex"]] <- unlist(ifelse(!is.na(viz_df$Nhood), nhoodIndex(endo_milo)[viz_df$Nhood],NA)) -->
-<!-- viz_df[is.na(viz_df["nhIndex"]),'nhIndex'] <- 1:ncol(endo_milo) # Add index also to single-cells -->
-
-<!-- if (!is.null(split_by)){ -->
-<!--   split_df <- data.frame(split_by=colData(endo_milo)[,split_by]) -->
-<!--   split_df[,"nhIndex"] <- 1:nrow(split_df) -->
-<!--   viz_df  <- left_join(viz_df, split_df, by="nhIndex") -->
-<!-- } -->
-
-<!-- filter_alpha=0.1 -->
-<!-- ## Filter significant DA nhoods -->
-<!-- if (!is.null(filter_alpha)) { -->
-<!--   if (filter_alpha > 0) { -->
-<!--     viz_df <- mutate(viz_df, logFC = ifelse(SpatialFDR > filter_alpha, NA, logFC)) -->
-<!--   } -->
-<!-- } -->
-
-<!-- ## Plot -->
-<!-- pt_size=1 -->
-<!-- nhood_reduced_dims="UMAP" -->
-<!-- components=c(1,2) -->
-<!--   pl <- -->
-<!--     ggplot(data = arrange(viz_df, abs(logFC)), -->
-<!--            aes(X, Y)) + -->
-<!--     geom_point(aes(color = ''), size = pt_size / 3, alpha = 0.5) + -->
-<!--     geom_point( -->
-<!--       data = . %>% filter(!is.na(SpatialFDR)), -->
-<!--       aes(fill = logFC), -->
-<!--       size = pt_size, -->
-<!--       stroke = 0.1, -->
-<!--       # colour="black", -->
-<!--       shape = 21 -->
-<!--     ) + -->
-<!--     scale_fill_gradient2( -->
-<!--       midpoint = 0, -->
-<!--       high = "red", -->
-<!--       low = "blue", -->
-<!--       name = "log-FC" -->
-<!--     ) + -->
-<!--     xlab(paste(nhood_reduced_dims, components[1], sep="_")) + -->
-<!--     ylab(paste(nhood_reduced_dims, components[2], sep="_")) -->
-
-<!--   if (!is.null(split_by)) { -->
-<!--     pl <- pl + facet_wrap(split_by~.) -->
-<!--   } -->
-<!--   if (!is.null(filter_alpha)) { -->
-<!--     pl <- pl + -->
-<!--       scale_color_manual(values = 'grey', label = paste("SpatialFDR >", round(filter_alpha, 2))) + -->
-<!--       guides(colour = guide_legend( -->
-<!--         '', -->
-<!--         override.aes = list( -->
-<!--           shape = 21, -->
-<!--           colour = "black", -->
-<!--           fill = "grey50", -->
-<!--           size = pt_size, -->
-<!--           alpha = 1, -->
-<!--           stroke = 0.1 -->
-<!--         ) -->
-<!--       )) -->
-<!--   } else { -->
-<!--     pl <- pl + -->
-<!--       scale_color_manual(values = 'grey') + -->
-<!--       guides(color="none") -->
-<!--   } -->
-
-<!--   pl <- pl + -->
-<!--     theme_classic(base_size = 16) + -->
-<!--     theme( -->
-<!--       axis.ticks = element_blank(), -->
-<!--       axis.text = element_blank(), -->
-<!--       plot.title = element_text(hjust = 0.5) -->
-<!--     ) -->
-<!-- pl -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- endo_milo <- scater::runPCA(endo_milo, subset_row=hvgs) -->
-<!-- ``` -->
-
-
-
-<!-- --- -->
-<!-- ## Old (before I got dataset from authors) -->
-
-<!-- Using data from [Ramachandran et al. 2019](https://www.nature.com/articles/s41586-019-1631-3#Sec1) (GEO accessiion: GSE136103).  -->
-
-<!-- ```{r} -->
-<!-- human_files <- list.files("~/Downloads/GSE136103_RAW", pattern="GSM40411.._healthy|cirrhotic", full.names = TRUE)  -->
-
-<!-- prefixes <- str_remove(human_files, "barcodes.tsv.gz|genes.tsv.gz|matrix.mtx.gz") %>% -->
-<!--   # str_remove(".+/") %>% -->
-<!--   unique()  -->
-
-<!-- sce_ls <- lapply(prefixes, function(x) read10xCounts(x, type="prefix")) -->
-<!-- liver_sce <- purrr::reduce(sce_ls, cbind) -->
-
-<!-- ## Make colData info -->
-<!-- new_coldata <- colData(liver_sce) %>% -->
-<!--   data.frame() %>% -->
-<!--   mutate(Sample=str_remove(Sample, ".+/") %>% str_remove("_$")) %>% -->
-<!--   separate(Sample, into=c("col1", "Patient", "Sort"), sep = "_", remove=FALSE) %>%  -->
-<!--   mutate(Condition=str_remove(Patient, ".$")) %>% -->
-<!--   select(-col1) %>% -->
-<!--   mutate(Cell_id = str_c(Sample, "_",Barcode)) %>% -->
-<!--   column_to_rownames("Cell_id") -->
-
-<!-- colnames(liver_sce) <- rownames(new_coldata) -->
-<!-- colData(liver_sce) <- DataFrame(new_coldata) -->
-
-<!-- # saveRDS(liver_sce, "~/GSE136103_SingleCellExperiment.RDS") -->
-<!-- ``` -->
-<!-- ```{r} -->
-<!-- liver_sce <- readRDS("~/GSE136103_SingleCellExperiment.RDS") -->
-<!-- ``` -->
-
-<!-- QC metrics show that the outlier cells are already filtered (following [this](https://osca.bioconductor.org/overview.html#data-processing-and-downstream-analysis)) -->
-
-<!-- ```{r, fig.width=10,fig.height=8} -->
-<!-- # is.mito <- grepl("^MT-", rownames(liver_sce)) -->
-<!-- qcstats <- perCellQCMetrics(liver_sce) -->
-
-<!-- colData(liver_sce) <- cbind(colData(liver_sce), qcstats) -->
-
-<!-- plotColData(liver_sce, x="Sample", y = "total", other_fields = "Condition") + -->
-<!--   scale_y_log10() + -->
-<!--   facet_wrap(~Condition, scales = "free") + -->
-<!--   ggtitle("total counts")  -->
-
-<!-- plotColData(liver_sce, x="Sample", y = "detected", other_fields = "Condition") + -->
-<!--   facet_wrap(~Condition, scales = "free") + -->
-<!--   ggtitle("Detected genes")  -->
-
-<!-- ``` -->
-
-<!-- ### Normalization -->
-
-<!-- ```{r} -->
-<!-- lib_sf <- librarySizeFactors(liver_sce) -->
-<!-- hist(log10(lib_sf), xlab="Log10[Size factor]", col='grey80') -->
-<!-- ``` -->
-<!-- ```{r} -->
-<!-- set.seed(100) -->
-<!-- liver_sce <- logNormCounts(liver_sce) -->
-<!-- assayNames(liver_sce) -->
-<!-- ``` -->
-
-<!-- ### Feature selection -->
-
-<!-- ```{r} -->
-<!-- library(scran) -->
-<!-- dec_liver <- modelGeneVar(liver_sce) -->
-
-<!-- # Visualizing the fit: -->
-<!-- fit_liver <- metadata(dec_liver) -->
-<!-- plot(fit_liver$mean, fit_liver$var, xlab="Mean of log-expression", -->
-<!--     ylab="Variance of log-expression") -->
-
-<!-- hvgs <- getTopHVGs(dec_liver, n=3000) -->
-<!-- ``` -->
-
-
-
-<!-- ### Dim reduction -->
-
-<!-- ```{r, fig.height=14, fig.width=14} -->
-<!-- liver_sce <- scater::runPCA(liver_sce, subset_row=hvgs, ncomponents=30) -->
-<!-- reducedDim(liver_sce, "PCA") <- reducedDim(liver_sce, "PCA")[,1:11] -->
-<!-- plotPCA(liver_sce, colour_by="Condition", ncomponents=3) -->
-<!-- ``` -->
-
-<!-- ```{r, fig.height=8, fig.width=8} -->
-<!-- liver_sce <- runUMAP(liver_sce, dimred="PCA", ncomponents=2) -->
-
-<!-- scater::plotUMAP(liver_sce, colour_by="Condition", point_alpha=1,  point_size=0.8)  -->
-<!-- scater::plotUMAP(liver_sce, colour_by="Sort", point_alpha=0.3,  point_size=0.5) -->
-<!-- scater::plotUMAP(liver_sce, colour_by="Patient", point_alpha=0.3,  point_size=0.5) -->
-<!-- ``` -->
-<!-- ```{r, fig.height=10, fig.width=10} -->
-<!-- rownames(liver_sce) <- rowData(liver_sce)$Symbol -->
-<!-- scater::plotUMAP(liver_sce, colour_by="CD3D", point_alpha=0.3, point_size=0.5) -->
-<!-- ``` -->
-
 
 
