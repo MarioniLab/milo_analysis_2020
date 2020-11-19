@@ -22,97 +22,13 @@ link-citations: true
 
 \newpage 
 
-# Supplementary figures
-
-```{r sup-fig-3, fig.pos="ht", fig.cap="(ref:sup-fig3)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig3.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig3) **Random sampling of k-NN graph vertices is suboptimal compared to sampling with refinement.**
-(A) Sampling with refinement leads to selection of fewer neighbourhoods 
-(B) Sampling with refinement leads to selection of bigger neighbourhoods for DA testing, independently of the initial proportion of cells sampled
-(C) Sampling with refinement generates robust neighbourhoods across initializations: for each NH index cell we calculate the distance from the closest index in a sampling with different initialization. The cumulative distribution of distances to the closest index is shown. The black dotted line denotes the distribution of distances between k nearest neighbors in the dataset (k=30).
-Neighbourhood statistics were calculated using a simulated trajectory dataset of 5000 cells. All plots show results from three sampling initializations for each proportion.
-
-```{r sup-fig-1, fig.pos="ht", fig.cap="(ref:sup-fig1)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig1.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig1) **Tolerance of Milo to uncorrected batch effects in simulated data**
-(A-B) UMAP embeddings of simulated scRNA-seq data containing a batch effect, before batch correction (top row) and after correction with fastMNN (bottom row) (5000 cells). Cells are colored by simulated batch (A) and by presence of differential abundance between 2 simulated conditions (20% cells in condition ‘A’, 80% cells in condition ‘B’) (B).
-(C) A graph representation of the results from Milo differential abundance testing. Neighbourhoods were tested for DA between conditions, with (~ batch + condition) or without (~ condition) accounting for the simulated batch. Nodes are neighbourhoods, coloured by their log fold change between conditions. Non-DA neighbourhoods (FDR 10%). Node sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods.
-(D) Confusion matrices comparing the number of true and predicted DA neighbourhoods, with different batch effect correction (rows) and different testing design (columns).
-
-```{r sup-fig-2, fig.pos="ht", fig.cap="(ref:sup-fig2)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig2.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig2) **Tolerance of Milo to uncorrected batch effects in mouse gastrulation atlas**
-(A-B) UMAP embedding of mouse gastrulation atlas before batch correction (top row) and after correction with fastMNN (bottom row). Cells are colored by sequencing batch (A) and developmental time point (B).
-(C) Barplot depicting the percentage of DA neighbourhoods at FDR 10%, testing for different experimental covariates: DA between sequencing batches (~ Seq. batch), DA across developmental time points (~ Time points), DA across developmental time points accounting for the sequencing batch (~ Seq. batch + time points). The total number of DA neighbourhoods is shown in each bar.
-
-```{r sup-fig-4, fig.pos="ht", fig.cap="(ref:sup-fig4)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig4.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig4) **Graph-clustering does not faithfully capture simulated groups and differentially abundant subpopulations in a simulated continuous trajectory.**
-(A) A simulated linear trajectory of 2000 single-cells generated from 5 different groups, with cells assigned to either condition ‘A’ (left) or condition ‘B’ (right).
-(B) A Walktrap clustering of the data in (A) using the same k-NN graph. Cells are coloured by Walktrap cluster identity.
-(C) A Louvain clustering of the data in (A) using the same k-NN graph. Cells are coloured by the Louvain clustering identity.
-(D) A heatmap comparing the numbers of cells in each Walktrap cluster with respect to the ground truth groups in (A). Each cell is coloured by the proportion of cells from the column groups (ground truth) that are assigned to the respective Walktrap cluster.
-
-```{r sup-fig-5, fig.pos="ht", fig.cap="(ref:sup-fig5)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig5.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig5) **Comparison of Milo to alternative differential abundance methods**
-Each panel shows a measure of method performance computed across 100 independent simulations. Boxplots denote the median and interquartile range (IQR), with whiskers extending 1.5 x IQR; outliers are shown as individual points. Each analysis on each independent simulation used the same parameter values in Supplementary Table 1.
-
-```{r sup-fig-7, fig.pos="ht", fig.cap="(ref:sup-fig7)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig7.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig7) **Memory usage across the Milo analysis workflow**
-Total memory usage across the steps of the Milo analysis workflow in 4 data sets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denoted down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) k-NN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all data-sets for graph building and neighbourhood construction (k=30).
-
-
-```{r sup-fig-6, fig.pos="ht", fig.cap="(ref:sup-fig6)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig6.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig6) **Downstream analysis of disease-specific subpopulations in liver cirrhosis**
-(A) GO term enrichment analysis on marker genes of cirrhosis-enriched endothelia. The top 20 significant terms are shown.
-(B) GO term enrichment analysis on marker genes of healthy-enriched endothelia. The top 20 significant terms are shown.
-(C) UMAP embedding and graph representation of neighbourhoods of 3369 cells from cholangiocytes lineage.
-(D) Volcano plot for DGE test on cholangiocytes subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
-(E) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.
-
-\newpage
-
-# Supplementary tables
-
-| Method           | Key Parameters | Values             | Hypothesis testing                      |
-|------------------|----------------|--------------------|-----------------------------------------|
-| Milo             | K              | 10                 | Negative binomial GLM, 10% FDR          |
-|                  | d              | 15                 | Negative binomial GLM, 10% FDR          |
-| Cydar            | r              | 2                  | Negative binomial GLM, 10% FDR          |
-| DAseq            | k.vector       | 5-500, steps of 50 | Logistic classifier prediction, top 10% |
-| Louvain + edgeR  | K              | 10                 | Negative binomial GLM, 10% FDR          |
-|                  | d              | 15                 |                                         |
-| Walktrap + edgeR | K              | 10                 | Negative binomial GLM, 10% FDR          |
-|                  | d              | 15                 |                                         |
-
-Supplementary Table 1: **Method comparison parameter values.**
-
-\newpage 
-
 # Supplementary notes 
 
 ## Description of _Milo_ 
 
-### Building the KNN graph 
+### Building the k-NN graph 
 
-Similarly to many other tasks in single-cell analysis, _Milo_ uses a KNN graph computed based on similarities in gene expression space as a representation of the phenotypic manifold in which cells lie. While _Milo_ can be used on graphs built with different similarity kernels, here we compute the graph as follows: a gene expression matrix of $N$ cells is projected onto the first $d$ principal components (PCs) to obtain a $N \times d$ matrix $X_{PC}$. Then, for each cell $j$, the Euclidean distances to its $k$ nearest neighbors in $X_{PC}$ are computed and stored in a $N \times N$ adjacency matrix. Then, $D$ is made symmetrical, such that cells $j$ and $l$ are nearest neighbors (i.e. connected by an edge) if either $j$ is a nearest neighbor of $l$ or $l$ is a nearest neighbor of $j$. The KNN graph is encoded by the undirected symmetric version of $\tilde{D}$ of $D$, where each cell has at least K nearest neighbors. 
+Similarly to many other tasks in single-cell analysis, _Milo_ uses a k-NN graph computed based on similarities in gene expression space as a representation of the phenotypic manifold in which cells lie. While _Milo_ can be used on graphs built with different similarity kernels, here we compute the graph as follows: a gene expression matrix of $N$ cells is projected onto the first $d$ principal components (PCs) to obtain a $N \times d$ matrix $X_{PC}$. Then, for each cell $j$, the Euclidean distances to its $k$ nearest neighbors in $X_{PC}$ are computed and stored in a $N \times N$ adjacency matrix. Then, $D$ is made symmetrical, such that cells $j$ and $l$ are nearest neighbors (i.e. connected by an edge) if either $j$ is a nearest neighbor of $l$ or $l$ is a nearest neighbor of $j$. The k-NN graph is encoded by the undirected symmetric version of $\tilde{D}$ of $D$, where each cell has at least K nearest neighbors. 
 
 ### Definition of cell neighbourhoods and index sampling algorithm 
 
@@ -120,13 +36,13 @@ We define the neighbourhood $n_i$ of cell $j$ as the group of cells that are con
 <!-- Formally,, a neighbourhood is encoded by the indices $j_n$ of the non-zero values of row $i$ in $\tilde{D}$. -->
 Formally, a cell $l$ belongs to neighbourhood $n_i$ if $\tilde{D}_{j,l} > 0$. We refer to $j$ as the index cell of the neighbourhood. 
 
-In order to define a representative subset of neighbourhoods that span the whole KNN graph, we implement a previously adopted algorithm to sample the index cells in a graph [@gutTrajectoriesCellcycleProgression2015; @settyWishboneIdentifiesBifurcating2016]. 
+In order to define a representative subset of neighbourhoods that span the whole k-NN graph, we implement a previously adopted algorithm to sample the index cells in a graph [@gutTrajectoriesCellcycleProgression2015; @settyWishboneIdentifiesBifurcating2016]. 
 Briefly, we start by randomly sampling $p \cdot N$ cells from the dataset, where $p \in [0,1]$  (we use $p = 0.1$ by default). 
 Given the reduced dimension matrix used for graph construction $X_{PC}$, for each sampled cell we consider its $k$ nearest neighbors $l = 1,2,...,k$ with PC profiles ${x_1, x_2, ... , x_k}$. We measure the mean PC profile $\bar{x}$ for the $k$ cells and search for the cell $j$ such that the Euclidean distance between $x_j$ and $\bar{x}$ is minimized. This yields a set of $M \leq p \cdot N$ index cells that are used to define neighbourhoods.
 
 ### Testing for differential abundance in neighbourhoods 
 
-_Milo_ builds upon the framework for differential abundance testing implemented by _Cydar_ [@lunTestingDifferentialAbundance2017]. In this section, we briefly describe the statistical model and adaptations to the KNN graph setting. 
+_Milo_ builds upon the framework for differential abundance testing implemented by _Cydar_ [@lunTestingDifferentialAbundance2017]. In this section, we briefly describe the statistical model and adaptations to the k-NN graph setting. 
 
 #### Quasi-likelihood negative binomial generalized linear models {-}
 
@@ -158,7 +74,7 @@ Estimation of $\beta_{ng}$ for each $n$ and $g$ is performed by fitting the GLM 
 
 #### Adaptation of Spatial FDR to neighbourhoods {-}
 
-To control for multiple testing, we adapt the Spatial FDR method introduced by $Cydar$ [@lunTestingDifferentialAbundance2017]. The Spatial FDR can be interpreted as the proportion of the union of neighbourhoods that is occupied by false-positive neighbourhoods. This accounts for the fact that some neighbourhoods are more densely connected than others. To control spatial FDR in the KNN graph, we apply a weighted version of the Benjamini-Hochberg (BH) method. Briefly, to control for FDR at some threshold $\alpha$ we reject null hypothesis $i$ where the associated p-value is less than the threshold
+To control for multiple testing, we adapt the Spatial FDR method introduced by $Cydar$ [@lunTestingDifferentialAbundance2017]. The Spatial FDR can be interpreted as the proportion of the union of neighbourhoods that is occupied by false-positive neighbourhoods. This accounts for the fact that some neighbourhoods are more densely connected than others. To control spatial FDR in the k-NN graph, we apply a weighted version of the Benjamini-Hochberg (BH) method. Briefly, to control for FDR at some threshold $\alpha$ we reject null hypothesis $i$ where the associated p-value is less than the threshold
 $$
 \max_i{p_{(i)}: p_{(i)}\le \alpha\frac{\sum_{l=1}^{i}w_{(l)}}{\sum_{l=1}^{n}w_{(l)}}}
 $$

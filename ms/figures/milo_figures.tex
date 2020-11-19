@@ -73,6 +73,8 @@
 
 \begin{document}
 
+\pagenumbering{gobble}
+
 \begin{figure}
 \centering
 \includegraphics{figs/figure1.pdf}
@@ -101,7 +103,7 @@ A graph representation of the results from Milo differential abundance testing. 
 \caption{\label{fig:fig-2}\textbf{Milo outperforms alternative differential abundance testing approaches}
 (A) An example simulated trajectory of cells drawn from 5 groups with cells assigned to either conditions `A' (purple points) or `B' (white points). Inset bar plot shows the number of cells (y-axis) assigned to each condition according to the group from which cells were sampled (x-axis).
 (B) A table describing the different methods compared to Milo, along with the input, key parameters and an overview of the testing framework for each.
-(C) Rankings of DA testing methods across a number of measures to determine performance. Each box is coloured by the ranking of the method for each method, where a rank of 1 indicates the best performance and 5 indicates the worst across 100 simulated data sets. Ranks are calculated from the mean value across 100 simulated data sets; mean values are shown. PPV: positive predictive value, NPV: negative predictive value, TNR: true negative rate, F1: F1 score, FOR: false omission rate, FNR: false negative rate, FPR: false positive rate, FDR: false discovery rate.
+(C) Rankings of DA testing methods across a number of measures to determine performance. Each box is coloured by the ranking of each measure for each method, where a rank of 1 indicates the best performance and 5 indicates the worst across 100 simulated data sets. Ranks are calculated from the mean value across 100 simulated data sets; mean values are shown. PPV: positive predictive value, NPV: negative predictive value, TNR: true negative rate, F1: F1 score, FOR: false omission rate, FNR: false negative rate, FPR: false positive rate, FDR: false discovery rate.
 (D) The Matthews correlation coefficient assesses the performance of each method by integrating across multiple performance measures. Box plots show the MCC across 100 independent simulations for each method.}
 \end{figure}
 
@@ -129,7 +131,7 @@ A graph representation of the results from Milo differential abundance testing. 
 \caption{\label{fig:fig-4}\textbf{Milo identifies the decline of a fate-biased precursor in the ageing mouse thymus}
 (A-B) A UMAP of single thymic epithelial cells sampled from mice aged 1-52 weeks old. Points are labelled according to their annotation in Baran-Gale et al.~2020 (A) and mouse age (B)
 (C) A graph representation of the results from Milo differential abundance testing. Nodes are neighbourhoods, coloured by their log fold change across ages. Non-DA neighbourhoods (FDR 10\%) are coloured white, and sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods. The layout of nodes is determined by the position of the neighbourhood index cell in the UMAP embedding of single cells.
-(D) Beeswarm plot showing the distribution of log-fold change across ages in neighbourhoods containing cells from different cell type clusters. DA neighbourhoods at FDR 10\% are coloured. Cell types detected as DA through clustering by Baran-Gale et al.~(2019) are annotated in the left side bar.
+(D) Beeswarm plot showing the distribution of log-fold change across ages in neighbourhoods containing cells from different cell type clusters. DA neighbourhoods at FDR 10\% are coloured. Cell types detected as DA through clustering by Baran-Gale et al.~(2020) are annotated in the left side bar.
 (E) A heatmap of genes differentially expressed between DA neighbourhoods in the Intertypical TEC cluster. Each column is a neighbourhood and rows are differentially expressed genes (FDR 1\%). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.}
 \end{figure}
 
@@ -155,16 +157,6 @@ Nodes are neighbourhoods, coloured by their log fold change between cirrhotic an
 
 \newpage
 
-\begin{enumerate}
-\def\labelenumi{(\Alph{enumi})}
-\setcounter{enumi}{3}
-\tightlist
-\item
-  Beeswarm plot showing the distribution of log-fold change in abundance between conditions in neighbourhoods from different cell type clusters. DA neighbourhoods at FDR 10\% are coloured. Cell types detected as DA through clustering by Ramachandran et al.~(2019) are annotated in the left side bar.
-\item
-  UMAP embedding and graph representation of neighbourhoods of 7995 cells from endothelial lineage.
-\item
-  Heatmap showing average neighbourhood expression of genes differentially expressed between DA neighbourhoods in the endothelial lineage (572 genes). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.
-\end{enumerate}
+(D) Beeswarm plot showing the distribution of log-fold change in abundance between conditions in neighbourhoods from different cell type clusters. DA neighbourhoods at FDR 10\% are coloured. Cell types detected as DA through clustering by Ramachandran et al.~(2019) are annotated in the left side bar. (E) UMAP embedding and graph representation of neighbourhoods of 7995 cells from endothelial lineage. (F) Heatmap showing average neighbourhood expression of genes differentially expressed between DA neighbourhoods in the endothelial lineage (572 genes). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.
 
 \end{document}
