@@ -1,6 +1,11 @@
 ---
 title: "Supplementary information for \n**Differential cell-state abundance testing using k-NN graphs with _Milo_**"
-author: "Emma Dann, Michael D. Morgan"
+author: 
+  - Emma Dann, 
+  - Neil C. Henderson,
+  - Sarah A. Teichmann,
+  - Michael D. Morgan,
+  - John C. Marioni
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   bookdown::pdf_document2:
@@ -158,10 +163,6 @@ $$
 \max_i{p_{(i)}: p_{(i)}\le \alpha\frac{\sum_{l=1}^{i}w_{(l)}}{\sum_{l=1}^{n}w_{(l)}}}
 $$
 Where the weight $w_{(i)}$ is the reciprocal of the neighbourhood connectivity $c_i$. As a measure of neighbourhood connectivity, we use the Euclidean distance to the kth nearest neighbour of the index cell for each neighbourhood.
-<!-- - edge connectivity: the minimum number of edges whose deletion from a graph $G$ disconnects $G$ -->
-<!-- - vertex connectivity: the minimum number of vertices whose deletion from a graph $G$ disconnects $G$ -->
-<!-- - k-distance: the distance to the kth nearest neighbour of the index vertex (the vertex sampled to define the neighbourhood) -->
-<!-- - neighbour-distance: the average euclidean distance of points within a neighbourhood -->
 
 ## Accounting for batch effects
 
