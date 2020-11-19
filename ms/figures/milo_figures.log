@@ -1,11 +1,11 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.27)  16 NOV 2020 18:50
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.11.18)  19 NOV 2020 10:44
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
 **milo_figures.tex
 (./milo_figures.tex
 LaTeX2e <2020-10-01> patch level 2
-L3 programming layer <2020-10-05> xparse <2020-03-03> (/home/jovyan/.TinyTeX/te
+L3 programming layer <2020-10-27> xparse <2020-03-03> (/home/jovyan/.TinyTeX/te
 xmf-dist/tex/latex/base/article.cls
 Document Class: article 2020/04/10 v1.4m Standard LaTeX document class
 (/home/jovyan/.TinyTeX/texmf-dist/tex/latex/base/size10.clo
@@ -423,58 +423,60 @@ LaTeX Info: Redefining \nameref on input line 74.
 * \@reversemarginfalse
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
-<figs/figure1.pdf, id=8, 1801.79153pt x 653.39505pt>
+<figs/figure1.pdf, id=4, 1801.79153pt x 653.39505pt>
 File: figs/figure1.pdf Graphic file (type pdf)
 <use figs/figure1.pdf>
-Package pdftex.def Info: figs/figure1.pdf  used on input line 82.
+Package pdftex.def Info: figs/figure1.pdf  used on input line 78.
 (pdftex.def)             Requested size: 469.74693pt x 170.34729pt.
-<figs/figure2.pdf, id=9, 1094.75002pt x 519.17566pt>
+<figs/figure2.pdf, id=5, 1094.75002pt x 519.17566pt>
 File: figs/figure2.pdf Graphic file (type pdf)
 <use figs/figure2.pdf>
-Package pdftex.def Info: figs/figure2.pdf  used on input line 98.
+Package pdftex.def Info: figs/figure2.pdf  used on input line 100.
 (pdftex.def)             Requested size: 469.76447pt x 222.7817pt.
-<figs/figure3.pdf, id=10, 999.45091pt x 987.6147pt>
+<figs/figure3.pdf, id=6, 862.48726pt x 303.44568pt>
 File: figs/figure3.pdf Graphic file (type pdf)
 <use figs/figure3.pdf>
-Package pdftex.def Info: figs/figure3.pdf  used on input line 112.
-(pdftex.def)             Requested size: 469.75725pt x 464.19405pt.
-<figs/figure4.pdf, id=11, 999.45091pt x 987.6147pt>
+Package pdftex.def Info: figs/figure3.pdf  used on input line 116.
+(pdftex.def)             Requested size: 469.76329pt x 165.27505pt.
+<figs/figure4.pdf, id=7, 999.45091pt x 987.6147pt>
 File: figs/figure4.pdf Graphic file (type pdf)
 <use figs/figure4.pdf>
-Package pdftex.def Info: figs/figure4.pdf  used on input line 124.
+Package pdftex.def Info: figs/figure4.pdf  used on input line 128.
 (pdftex.def)             Requested size: 469.75725pt x 464.19405pt.
-<figs/figure5.pdf, id=12, 1589.94pt x 1879.02pt>
+<figs/figure5.pdf, id=8, 1589.94pt x 1879.02pt>
 File: figs/figure5.pdf Graphic file (type pdf)
 <use figs/figure5.pdf>
-Package pdftex.def Info: figs/figure5.pdf  used on input line 142.
+Package pdftex.def Info: figs/figure5.pdf  used on input line 144.
 (pdftex.def)             Requested size: 469.75606pt x 555.16626pt.
 
-LaTeX Warning: Float too large for page by 84.68068pt on input line 149.
+LaTeX Warning: Float too large for page by 0.68068pt on input line 149.
 
 [1
 
 {/home/jovyan/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map} <./figs/fi
-gure1.pdf>] [2 <./figs/figure2.pdf>] [3 <./figs/figure3.pdf>] [4 <./figs/figure
-4.pdf>] [5 <./figs/figure5.pdf>] (./milo_figures.aux)
+gure1.pdf>] [2 <./figs/figure2.pdf> <./figs/figure3.pdf
+
+pdfTeX warning: pdflatex (file ./figs/figure3.pdf): PDF inclusion: multiple pdf
+s with page group included in a single page
+>] [3 <./figs/figure4.pdf>] [4 <./figs/figure5.pdf>] [5] (./milo_figures.aux)
 Package rerunfilecheck Info: File `milo_figures.out' has not changed.
-(rerunfilecheck)             Checksum: 3BB1E06F2719A0B1B4FC4A542E600EF7;79.
+(rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 10745 strings out of 481866
- 150641 string characters out of 5931061
- 465473 words of memory out of 5000000
- 26915 multiletter control sequences out of 15000+600000
- 547070 words of font info for 33 fonts, out of 8000000 for 9000
+ 10739 strings out of 481433
+ 150571 string characters out of 5920288
+ 462927 words of memory out of 5000000
+ 27345 multiletter control sequences out of 15000+600000
+ 541073 words of font info for 31 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 66i,6n,72p,1609b,333s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 66i,6n,72p,1543b,331s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/home/jovyan/.TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}</home/jovyan/
 .TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></home/jovyan/.TinyTeX/tex
-mf-dist/fonts/type1/public/lm/lmbx12.pfb></home/jovyan/.TinyTeX/texmf-dist/font
-s/type1/public/lm/lmr10.pfb>
-Output written on milo_figures.pdf (5 pages, 25745599 bytes).
+mf-dist/fonts/type1/public/lm/lmr10.pfb>
+Output written on milo_figures.pdf (5 pages, 21857302 bytes).
 PDF statistics:
- 49944 PDF objects out of 55141 (max. 8388607)
- 24831 compressed objects within 249 object streams
- 13 named destinations out of 1000 (max. 500000)
- 34 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 36332 PDF objects out of 38293 (max. 8388607)
+ 18067 compressed objects within 181 object streams
+ 14 named destinations out of 1000 (max. 500000)
+ 26 words of extra memory for PDF output out of 10000 (max. 10000000)
 
