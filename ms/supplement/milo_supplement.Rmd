@@ -13,6 +13,9 @@ output:
     toc: true
     toc_depth: 3
     number_sections: true
+    includes:
+      in_header:
+        preamble.tex
 bibliography: milo_supplement.bib
 csl: cell-numeric.csl
 link-citations: true
