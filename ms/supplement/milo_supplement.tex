@@ -77,7 +77,7 @@
 \title{Supplementary information for
 \textbf{Differential cell-state abundance testing using k-NN graphs with \emph{Milo}}}
 \author{Emma Dann, \and Neil C. Henderson, \and Sarah A. Teichmann, \and Michael D. Morgan, \and John C. Marioni}
-\date{19 November, 2020}
+\date{20 November, 2020}
 
 \begin{document}
 \maketitle
@@ -104,7 +104,7 @@ Similarly to many other tasks in single-cell analysis, \emph{Milo} uses a k-NN g
 \hypertarget{definition-of-cell-neighbourhoods-and-index-sampling-algorithm}{%
 \subsubsection{Definition of cell neighbourhoods and index sampling algorithm}\label{definition-of-cell-neighbourhoods-and-index-sampling-algorithm}}
 
-We define the neighbourhood \(n_i\) of cell \(j\) as the group of cells that are connected to \(j\) by an edge in the graph.
+We define the neighbourhood \(n_i\) of cell \(j\) as the group of cells that are connected to \(j\) by an edge in the graph. Here, \(i=1,2,...,M\) indexes the sampled neighbourhoods, while \(j=1,2,...,N\) indexes the single-cells in the graph, so that \(M \leq N\).
 Formally, a cell \(l\) belongs to neighbourhood \(n_i\) if \(\tilde{D}_{j,l} > 0\). We refer to \(j\) as the index cell of the neighbourhood.
 
 In order to define a representative subset of neighbourhoods that span the whole k-NN graph, we implement a previously adopted algorithm to sample the index cells in a graph {[}\protect\hyperlink{ref-gutTrajectoriesCellcycleProgression2015}{1},\protect\hyperlink{ref-settyWishboneIdentifiesBifurcating2016}{2}{]}.

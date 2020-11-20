@@ -95,7 +95,7 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 \begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig1.pdf}
+\includegraphics{suppl_figs/suppl_fig1_letters.pdf}
 \caption{\label{fig:sup-fig-1}\textbf{Tolerance of Milo to uncorrected batch effects in simulated data}
 (A-B) UMAP embeddings of simulated scRNA-seq data containing a batch effect, before batch correction (top row) and after correction with fastMNN (bottom row) (5000 cells). Cells are colored by simulated batch (A) and by presence of differential abundance between 2 simulated conditions (20\% cells in condition `A', 80\% cells in condition `B') (B).
 (C) A graph representation of the results from Milo differential abundance testing. Neighbourhoods were tested for DA between conditions, with (\textasciitilde{} batch + condition) or without (\textasciitilde{} condition) accounting for the simulated batch. Nodes are neighbourhoods, coloured by their log fold change between conditions. Non-DA neighbourhoods (FDR 10\%). Node sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods.
@@ -109,7 +109,7 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 \begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig2.pdf}
+\includegraphics{suppl_figs/suppl_fig2_letters.pdf}
 \caption{\label{fig:sup-fig-2}\textbf{Tolerance of Milo to uncorrected batch effects in mouse gastrulation atlas}
 (A-B) UMAP embedding of mouse gastrulation atlas before batch correction (top row) and after correction with fastMNN (bottom row). Cells are colored by sequencing batch (A) and developmental time point (B).
 (C) Barplot depicting the percentage of DA neighbourhoods at FDR 10\%, testing for different experimental covariates: DA between sequencing batches (\textasciitilde{} Seq. batch), DA across developmental time points (\textasciitilde{} Time points), DA across developmental time points accounting for the sequencing batch (\textasciitilde{} Seq. batch + time points). The total number of DA neighbourhoods is shown in each bar.}
@@ -161,9 +161,9 @@ Total memory usage across the steps of the Milo analysis workflow in 4 data sets
 \caption{\label{fig:sup-fig-6}\textbf{Downstream analysis of disease-specific subpopulations in liver cirrhosis}
 (A) GO term enrichment analysis on marker genes of cirrhosis-enriched endothelia. The top 20 significant terms are shown.
 (B) GO term enrichment analysis on marker genes of healthy-enriched endothelia. The top 20 significant terms are shown.
-(C) UMAP embedding and graph representation of neighbourhoods of 3369 cells from cholangiocytes lineage.
-(D) Volcano plot for DGE test on cholangiocytes DA subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
-(E) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.}
+(C-D) UMAP embedding (C) and graph representation (D) of neighbourhoods of 3369 cells from cholangiocytes lineage.
+(E) Volcano plot for DGE test on cholangiocytes DA subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
+(F) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.}
 \end{figure}
 
 

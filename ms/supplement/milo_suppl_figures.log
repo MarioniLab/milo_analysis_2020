@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.11.18)  19 NOV 2020 11:21
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.11.18)  20 NOV 2020 08:00
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -428,15 +428,25 @@ File: suppl_figs/suppl_fig3.pdf Graphic file (type pdf)
 <use suppl_figs/suppl_fig3.pdf>
 Package pdftex.def Info: suppl_figs/suppl_fig3.pdf  used on input line 82.
 (pdftex.def)             Requested size: 469.75385pt x 352.31538pt.
-<suppl_figs/suppl_fig1.pdf, id=9, 1300.86pt x 542.025pt>
-File: suppl_figs/suppl_fig1.pdf Graphic file (type pdf)
-<use suppl_figs/suppl_fig1.pdf>
-Package pdftex.def Info: suppl_figs/suppl_fig1.pdf  used on input line 98.
-(pdftex.def)             Requested size: 469.75827pt x 195.7326pt.
-<suppl_figs/suppl_fig2.pdf, id=10, 1156.32pt x 578.16pt>
-File: suppl_figs/suppl_fig2.pdf Graphic file (type pdf)
-<use suppl_figs/suppl_fig2.pdf>
-Package pdftex.def Info: suppl_figs/suppl_fig2.pdf  used on input line 112.
+
+
+pdfTeX warning: pdflatex (file ./suppl_figs/suppl_fig1_letters.pdf): PDF inclus
+ion: found PDF version <1.6>, but at most version <1.5> allowed
+<suppl_figs/suppl_fig1_letters.pdf, id=9, 1300.64925pt x 542.025pt>
+File: suppl_figs/suppl_fig1_letters.pdf Graphic file (type pdf)
+<use suppl_figs/suppl_fig1_letters.pdf>
+Package pdftex.def Info: suppl_figs/suppl_fig1_letters.pdf  used on input line 
+98.
+(pdftex.def)             Requested size: 469.76154pt x 195.76569pt.
+
+
+pdfTeX warning: pdflatex (file ./suppl_figs/suppl_fig2_letters.pdf): PDF inclus
+ion: found PDF version <1.6>, but at most version <1.5> allowed
+<suppl_figs/suppl_fig2_letters.pdf, id=10, 1156.32pt x 578.16pt>
+File: suppl_figs/suppl_fig2_letters.pdf Graphic file (type pdf)
+<use suppl_figs/suppl_fig2_letters.pdf>
+Package pdftex.def Info: suppl_figs/suppl_fig2_letters.pdf  used on input line 
+112.
 (pdftex.def)             Requested size: 469.75385pt x 234.87692pt.
 <suppl_figs/suppl_fig4.pdf, id=11, 744.0899pt x 825.69379pt>
 File: suppl_figs/suppl_fig4.pdf Graphic file (type pdf)
@@ -469,15 +479,15 @@ igs/suppl_fig3.pdf>]pdfTeX warning (ext4): destination with the same identifier
 <to be read again> 
                    \relax 
 l.176 \newpage
-               [2 <./suppl_figs/suppl_fig1.pdf>]pdfTeX warning (ext4): destinat
-ion with the same identifier (name{page.}) has been already used, duplicate ign
-ored
+               [2 <./suppl_figs/suppl_fig1_letters.pdf>]pdfTeX warning (ext4): 
+destination with the same identifier (name{page.}) has been already used, dupli
+cate ignored
 <to be read again> 
                    \relax 
 l.176 \newpage
-               [3 <./suppl_figs/suppl_fig2.pdf>]pdfTeX warning (ext4): destinat
-ion with the same identifier (name{page.}) has been already used, duplicate ign
-ored
+               [3 <./suppl_figs/suppl_fig2_letters.pdf>]pdfTeX warning (ext4): 
+destination with the same identifier (name{page.}) has been already used, dupli
+cate ignored
 <to be read again> 
                    \relax 
 l.176 \newpage
@@ -511,8 +521,8 @@ Package rerunfilecheck Info: File `milo_suppl_figures.out' has not changed.
  ) 
 Here is how much of TeX's memory you used:
  10760 strings out of 481433
- 151428 string characters out of 5920288
- 460894 words of memory out of 5000000
+ 151524 string characters out of 5920288
+ 461017 words of memory out of 5000000
  27364 multiletter control sequences out of 15000+600000
  547070 words of font info for 33 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
@@ -521,10 +531,10 @@ Here is how much of TeX's memory you used:
 .TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></home/jovyan/.TinyTeX/tex
 mf-dist/fonts/type1/public/lm/lmbx12.pfb></home/jovyan/.TinyTeX/texmf-dist/font
 s/type1/public/lm/lmr10.pfb>
-Output written on milo_suppl_figures.pdf (8 pages, 35185070 bytes).
+Output written on milo_suppl_figures.pdf (8 pages, 14126154 bytes).
 PDF statistics:
- 804 PDF objects out of 1000 (max. 8388607)
- 425 compressed objects within 5 object streams
+ 853 PDF objects out of 1000 (max. 8388607)
+ 424 compressed objects within 5 object streams
  12 named destinations out of 1000 (max. 500000)
  44 words of extra memory for PDF output out of 10000 (max. 10000000)
 

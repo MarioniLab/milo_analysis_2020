@@ -60,14 +60,14 @@ knitr::include_graphics("figs/figure4.pdf", auto_pdf = TRUE)
 (ref:fig4) **Milo identifies the decline of a fate-biased precursor in the ageing mouse thymus**
 (A-B) A UMAP of single thymic epithelial cells sampled from mice aged 1-52 weeks old. Points are labelled according to their annotation in Baran-Gale et al. 2020 (A) and mouse age (B)
 (C) A graph representation of the results from Milo differential abundance testing. Nodes are neighbourhoods, coloured by their log fold change across ages. Non-DA neighbourhoods (FDR 10%) are coloured white, and sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods. The layout of nodes is determined by the position of the neighbourhood index cell in the UMAP embedding of single cells. 
-(D) Beeswarm plot showing the distribution of log-fold change across ages in neighbourhoods containing cells from different cell type clusters. DA neighbourhoods at FDR 10% are coloured. Cell types detected as DA through clustering by Baran-Gale et al. (2020) are annotated in the left side bar.
+(D) Beeswarm plot showing the distribution of log-fold change across age in neighbourhoods containing cells from different cell type clusters. DA neighbourhoods at FDR 10% are coloured. Cell types detected as DA through clustering by Baran-Gale et al. (2020) are annotated in the left side bar.
 <!-- A swarm plot illustrating the relationship between Milo results and those reported in Baran-Gale et al.  -->
 <!-- Each panel shows the neighbourhoods containing cells from the reported clusters, as in (A), coloured by their log fold change across ages (x-axis). The left panels represent the age-related change in abundance of the cluster identified in Baran-Gale et al. Red denotes a reduction of the cluster with age, whilst blue arrows denote clusters that increased in abundance. -->
 (E) A heatmap of genes differentially expressed between DA neighbourhoods in the Intertypical TEC cluster. Each column is a neighbourhood and rows are differentially expressed genes (FDR 1%). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.
 
 
 ```{r fig-5, fig.cap="(ref:fig5)"}
-knitr::include_graphics("figs/figure5.pdf", auto_pdf = TRUE)
+knitr::include_graphics("figs/figure5_letters.pdf", auto_pdf = TRUE)
 ```
 
 (ref:fig5) **Milo identifies the compositional disorder in cirrhotic liver**

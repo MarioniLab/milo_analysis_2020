@@ -32,8 +32,7 @@ Similarly to many other tasks in single-cell analysis, _Milo_ uses a k-NN graph 
 
 ### Definition of cell neighbourhoods and index sampling algorithm 
 
-We define the neighbourhood $n_i$ of cell $j$ as the group of cells that are connected to $j$ by an edge in the graph.
-<!-- Formally,, a neighbourhood is encoded by the indices $j_n$ of the non-zero values of row $i$ in $\tilde{D}$. -->
+We define the neighbourhood $n_i$ of cell $j$ as the group of cells that are connected to $j$ by an edge in the graph. Here, $i=1,2,...,M$ indexes the sampled neighbourhoods, while $j=1,2,...,N$ indexes the single-cells in the graph, so that $M \leq N$.
 Formally, a cell $l$ belongs to neighbourhood $n_i$ if $\tilde{D}_{j,l} > 0$. We refer to $j$ as the index cell of the neighbourhood. 
 
 In order to define a representative subset of neighbourhoods that span the whole k-NN graph, we implement a previously adopted algorithm to sample the index cells in a graph [@gutTrajectoriesCellcycleProgression2015; @settyWishboneIdentifiesBifurcating2016]. 
