@@ -108,8 +108,8 @@ We define the neighbourhood \(n_i\) of cell \(j\) as the group of cells that are
 Formally, a cell \(l\) belongs to neighbourhood \(n_i\) if \(\tilde{D}_{j,l} > 0\). We refer to \(j\) as the index cell of the neighbourhood.
 
 In order to define a representative subset of neighbourhoods that span the whole k-NN graph, we implement a previously adopted algorithm to sample the index cells in a graph {[}\protect\hyperlink{ref-gutTrajectoriesCellcycleProgression2015}{1},\protect\hyperlink{ref-settyWishboneIdentifiesBifurcating2016}{2}{]}.
-Briefly, we start by randomly sampling \(p \cdot N\) cells from the dataset, where \(p \in [0,1]\) (we use \(p = 0.1\) by default).
-Given the reduced dimension matrix used for graph construction \(X_{PC}\), for each sampled cell we consider its \(k\) nearest neighbors \(l = 1,2,...,k\) with PC profiles \({x_1, x_2, ... , x_k}\). We measure the mean PC profile \(\bar{x}\) for the \(k\) cells and search for the cell \(j\) such that the Euclidean distance between \(x_j\) and \(\bar{x}\) is minimized. This yields a set of \(M \leq p \cdot N\) index cells that are used to define neighbourhoods.
+Briefly, we start by randomly sampling \(p \cdot M\) cells from the dataset, where \(p \in [0,1]\) (we use \(p = 0.1\) by default).
+Given the reduced dimension matrix used for graph construction \(X_{PC}\), for each sampled cell we consider its \(k\) nearest neighbors \(l = 1,2,...,k\) with PC profiles \({x_1, x_2, ... , x_k}\). We measure the mean PC profile \(\bar{x}\) for the \(k\) cells and search for the cell \(j\) such that the Euclidean distance between \(x_j\) and \(\bar{x}\) is minimized. This yields a set of \(N \leq p \cdot M\) index cells that are used to define neighbourhoods.
 
 \hypertarget{testing-for-differential-abundance-in-neighbourhoods}{%
 \subsubsection{Testing for differential abundance in neighbourhoods}\label{testing-for-differential-abundance-in-neighbourhoods}}
