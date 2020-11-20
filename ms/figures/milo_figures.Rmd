@@ -67,7 +67,7 @@ knitr::include_graphics("figs/figure4.pdf", auto_pdf = TRUE)
 
 
 ```{r fig-5, fig.cap="(ref:fig5)"}
-knitr::include_graphics("figs/figure5_letters.pdf", auto_pdf = TRUE)
+knitr::include_graphics("figs/figure5_letters_2.pdf", auto_pdf = TRUE)
 ```
 
 (ref:fig5) **Milo identifies the compositional disorder in cirrhotic liver**

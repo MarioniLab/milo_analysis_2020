@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.11.18)  20 NOV 2020 08:03
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.11.18)  20 NOV 2020 09:58
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -445,15 +445,15 @@ Package pdftex.def Info: figs/figure4.pdf  used on input line 130.
 (pdftex.def)             Requested size: 469.75725pt x 464.19405pt.
 
 
-pdfTeX warning: pdflatex (file ./figs/figure5_letters.pdf): PDF inclusion: foun
-d PDF version <1.6>, but at most version <1.5> allowed
-<figs/figure5_letters.pdf, id=8, 597.157pt x 845.14647pt>
-File: figs/figure5_letters.pdf Graphic file (type pdf)
-<use figs/figure5_letters.pdf>
-Package pdftex.def Info: figs/figure5_letters.pdf  used on input line 146.
-(pdftex.def)             Requested size: 459.5845pt x 650.4424pt.
+pdfTeX warning: pdflatex (file ./figs/figure5_letters_2.pdf): PDF inclusion: fo
+und PDF version <1.6>, but at most version <1.5> allowed
+<figs/figure5_letters_2.pdf, id=8, 596.33092pt x 720.84204pt>
+File: figs/figure5_letters_2.pdf Graphic file (type pdf)
+<use figs/figure5_letters_2.pdf>
+Package pdftex.def Info: figs/figure5_letters_2.pdf  used on input line 146.
+(pdftex.def)             Requested size: 469.76776pt x 567.85309pt.
 
-LaTeX Warning: Float too large for page by 95.95682pt on input line 151.
+LaTeX Warning: Float too large for page by 13.36751pt on input line 151.
 
 [1
 
@@ -477,9 +477,9 @@ the same identifier (name{page.}) has been already used, duplicate ignored
 <to be read again> 
                    \relax 
 l.158 \newpage
-               [4 <./figs/figure5_letters.pdf>]pdfTeX warning (ext4): destinati
-on with the same identifier (name{page.}) has been already used, duplicate igno
-red
+               [4 <./figs/figure5_letters_2.pdf>]pdfTeX warning (ext4): destina
+tion with the same identifier (name{page.}) has been already used, duplicate ig
+nored
 <to be read again> 
                    \relax 
 l.162 \end{document}
@@ -489,7 +489,7 @@ Package rerunfilecheck Info: File `milo_figures.out' has not changed.
  ) 
 Here is how much of TeX's memory you used:
  10733 strings out of 481433
- 150587 string characters out of 5920288
+ 150599 string characters out of 5920288
  462918 words of memory out of 5000000
  27346 multiletter control sequences out of 15000+600000
  541073 words of font info for 31 fonts, out of 8000000 for 9000
@@ -498,7 +498,7 @@ Here is how much of TeX's memory you used:
 {/home/jovyan/.TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}</home/jovyan/
 .TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></home/jovyan/.TinyTeX/tex
 mf-dist/fonts/type1/public/lm/lmr10.pfb>
-Output written on milo_figures.pdf (5 pages, 19823881 bytes).
+Output written on milo_figures.pdf (5 pages, 19836474 bytes).
 PDF statistics:
  36356 PDF objects out of 38293 (max. 8388607)
  18061 compressed objects within 181 object streams
