@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.11.18)  20 NOV 2020 09:58
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.11.18)  25 NOV 2020 19:37
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -463,42 +463,39 @@ ge.}) has been already used, duplicate ignored
 <to be read again> 
                    \relax 
 l.158 \newpage
-               [2 <./figs/figure2.pdf> <./figs/figure3.pdf
-
-pdfTeX warning: pdflatex (file ./figs/figure3.pdf): PDF inclusion: multiple pdf
-s with page group included in a single page
->]pdfTeX warning (ext4): destination with the same identifier (name{page.}) has
- been already used, duplicate ignored
-<to be read again> 
-                   \relax 
-l.158 \newpage
-               [3 <./figs/figure4.pdf>]pdfTeX warning (ext4): destination with 
+               [2 <./figs/figure2.pdf>]pdfTeX warning (ext4): destination with 
 the same identifier (name{page.}) has been already used, duplicate ignored
 <to be read again> 
                    \relax 
-l.158 \newpage
-               [4 <./figs/figure5_letters_2.pdf>]pdfTeX warning (ext4): destina
-tion with the same identifier (name{page.}) has been already used, duplicate ig
-nored
+l.162 \end{document}
+                     [3 <./figs/figure3.pdf>]pdfTeX warning (ext4): destination
+ with the same identifier (name{page.}) has been already used, duplicate ignore
+d
 <to be read again> 
                    \relax 
 l.162 \end{document}
-                     [5] (./milo_figures.aux)
+                     [4 <./figs/figure4.pdf>]pdfTeX warning (ext4): destination
+ with the same identifier (name{page.}) has been already used, duplicate ignore
+d
+<to be read again> 
+                   \relax 
+l.162 \end{document}
+                     [5 <./figs/figure5_letters_2.pdf>] (./milo_figures.aux)
 Package rerunfilecheck Info: File `milo_figures.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
  10733 strings out of 481433
  150599 string characters out of 5920288
- 462918 words of memory out of 5000000
+ 463434 words of memory out of 5000000
  27346 multiletter control sequences out of 15000+600000
  541073 words of font info for 31 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 66i,6n,72p,1541b,330s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 66i,6n,72p,1583b,332s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/home/jovyan/.TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}</home/jovyan/
 .TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></home/jovyan/.TinyTeX/tex
 mf-dist/fonts/type1/public/lm/lmr10.pfb>
-Output written on milo_figures.pdf (5 pages, 19836474 bytes).
+Output written on milo_figures.pdf (5 pages, 19836881 bytes).
 PDF statistics:
  36356 PDF objects out of 38293 (max. 8388607)
  18061 compressed objects within 181 object streams
