@@ -42,7 +42,7 @@ liver_sce
 
 ## Preprocessing
 
-We use the same number of highly variable genes and principal components used by the original authors. 
+We use the same number of highly variable genes and principal components used by the authors of the original study. 
 
 ### Feature selection
 
