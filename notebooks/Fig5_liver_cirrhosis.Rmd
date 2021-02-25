@@ -12,17 +12,17 @@ In this notebook we demonstrate how to use Milo to detect abherrant cell states 
 ```{r}
 suppressPackageStartupMessages({
   library(tidyverse)
-  library(irlba)
-  library(DropletUtils)
+  # library(irlba)
+  # library(DropletUtils)
   library(scater)
   library(scran)
-  library(Seurat) ## just 4 loading the object
+  # library(Seurat) ## just 4 loading the object
   library(miloR)
   library(SingleCellExperiment)
   library(patchwork)
   library(igraph)
   library(RColorBrewer)
-  library(cowplot)
+  # library(cowplot)
   })
 ```
 
@@ -42,6 +42,8 @@ liver_sce
 
 ## Preprocessing
 
+We use the same number of highly variable genes and principal components used by the original authors. 
+
 ### Feature selection
 
 Select highly variable genes
@@ -59,6 +61,7 @@ hvgs <- getTopHVGs(dec_liver, n=3000)
 ### Dimensionality reduction
 
 ```{r, fig.height=8, fig.width=8}
+set.seed(42)
 liver_sce <- runPCA(liver_sce, subset_row=hvgs, ncomponents=11)
 liver_sce <- runUMAP(liver_sce, dimred="PCA", ncomponents=2)
 
@@ -97,13 +100,37 @@ Now we can count cells in neighbourhoods and perform the DA test.
 
 ```{r}
 liver_milo <- countCells(liver_milo, samples = "dataset", meta.data = data.frame(colData(liver_milo)[,c("dataset","condition")]) )
-
 liver_milo <- calcNhoodDistance(liver_milo, d=11)
 milo_res <- testNhoods(liver_milo, design = ~ condition, design.df = liver_meta, 
                        fdr.weighting = "k-distance")
 ```
 
-## Exploration of DA results
+## Run other methods for DA analysis
+
+```{r}
+source("~/milo/notebooks/benchmark/benchmark_utils.R")
+```
+
+Running DAseq
+
+```{r}
+liver_sce$cell_id <- colnames(liver_sce)
+daseq_res <- run_daseq(liver_sce, condition_col="condition", cell_col = "cell_id", k.vec = seq(30, 500, 50), reduced.dim = "PCA", d = 11)
+```
+
+Running MELD (using inline python, the details on the environment used for running DA methods are in `milo_bm.yaml`)
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+## Exploration of Milo DA results
 
 We can start by looking at some basic stats
 
