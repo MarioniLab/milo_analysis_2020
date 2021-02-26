@@ -1,0 +1,183 @@
+---
+title: "Preparing mouse ageing thymus Droplet-seq data"
+output:
+  BiocStyle::html_document:
+    toc_float: true
+---
+
+```{r style, echo=FALSE, results='hide', message=FALSE}
+library(BiocStyle)
+knitr::opts_chunk$set(error=FALSE, message=FALSE, warning=FALSE)
+```
+
+# Overview
+
+The purpose of this notebook is to prepare the mouse thymus ageing single-cell transcriptome data generated using the droplet 10X Genomics 
+chromium chemistry. These data are derived from a transgenic model used to lineage trace the descendant cells from $\beta-5t$ progenitors. TEC 
+were FAC-sorted using the fluorescent transgene ZsG into positive (ZsG+) and negative (ZsG-) populations, as well as the principal TEC subtypes, 
+cTEC and mTEC. These cells were derived from 3 independent replicates for each population (ZsG+/- cTEC & mTEC) 4 weeks after doxycycline treatment 
+to induce the transgene, beginning with mice at 1, 4 and 16 weeks of age. Single-cell suspensions were generated, hashtag oligos (HTOs) were added 
+to each pool of cells, with 6 samples pooled into each tube. A single tube was split into 2 wells on the 10X chromium chip, libraries were generated 
+and sequenced on an Illumina NovaSeq 6000.
+
+Thus, these data contain 6 samples, each of which contain input cells from 6 experimental samples (ZsG+/-, cTEC & mTEC, 1, 4 & 16 weeks old at 
+treatment), for a total of 36 experimental samples.
+
+# Preparing the processed data
+
+To minimise memory pressure and maximise usability, we have provided a gzip compressed counts matrix for each of the 6 10X well samples - these 
+have not been processed to remove poor-quality cells, but have been called as non-empty droplets. Borrowing from the 
+`r Biocpkg("MouseGastrulationAtlas")` we also make using of caching in the `r Biocpkg("BiocFileCache")` to avoid having to constantly download 
+data for subsequent analyses. There is a counts matrix for each sample
+
+```{r}
+library(BiocFileCache)
+bfc <- BiocFileCache(ask=FALSE)
+samp.names <- c("ZsG_1Run1", "ZsG_1Run2", "ZsG_2Run1", "ZsG_2Run2", "ZsG_3Run1", "ZsG_3Run2")
+
+count.paths <- sapply(seq_along(samp.names), FUN=function(XP) bfcrpath(bfc, file.path("https://content.cruk.cam.ac.uk/",
+                                                                                      paste0("jmlab/thymus_data/", samp.names[XP],
+                                                                                             "_raw_counts.mtx.gz"))))
+
+ids.paths <- sapply(seq_along(samp.names), FUN=function(XP) bfcrpath(bfc, file.path("https://content.cruk.cam.ac.uk/",
+                                                                                    paste0("jmlab/thymus_data/", samp.names[XP],
+                                                                                           "_colnames.tsv"))))
+```
+
+These contain the gene counts for cells that are called non-empty (detailed in manuscript). For these data to be usable we also need the gene IDs - 
+these are provided as a separate table that contains the gene names - we'll add in additional information such as the chromosome, start and end position and gene length, later.
+
+```{r}
+genes.path <- bfcrpath(bfc, file.path("https://content.cruk.cam.ac.uk/",
+                                      "jmlab/thymus_data/genes.tsv.gz"))
+```
+
+The matrices need to be read in using the `readMM` function from the `r CRANpkg("Matrix")` package.
+
+```{r}
+library(Matrix)
+counts.list <- list()
+for(x in seq_along(ids.paths)){
+  counts <- readMM(count.paths[x])
+  ids <- read.table(ids.paths[x], sep="\t", header=TRUE, stringsAsFactors=FALSE)
+  colnames(counts) <- ids[, 1]
+  counts.list[[paste0(x)]] <- counts
+}
+
+thymus.counts <- do.call(cbind, counts.list)
+```
+
+The gene info and column names can be loaded in using the standard `read.table` functions. We'll pull in extra information like chromosome mapping 
+location, positions, strand, etc from `r Biocpkg("biomaRt")`.
+
+```{r}
+library(biomaRt)
+biomaRt.connection <- useMart("ensembl", "mmusculus_gene_ensembl")
+gene.info <- read.table(genes.path, sep="\t", header=TRUE, stringsAsFactors=FALSE)
+
+gene.df <- getBM(attributes = c("ensembl_gene_id", "external_gene_name", 
+                                "chromosome_name", "start_position", "end_position",
+                                "strand"),
+                 filter="ensembl_gene_id",
+                 values=gene.info[, 1],
+                 mart=biomaRt.connection)
+rownames(gene.df) <- gene.df$ensembl_gene_id
+gene.df <- gene.df[gene.info[, 1], ]
+head(gene.df)
+```
+
+Finally, we can download the size factors and other cell-wise meta-data, including sorting day (replicate), sort population, age, cluster 
+ID as assigned in the manuscript and plate information. We can also pull in the reduced dimensional representations at this stage.
+
+```{r}
+# meta data
+meta.path <- bfcrpath(bfc, file.path("https://content.cruk.cam.ac.uk/",
+                                     "jmlab/thymus_data/ZsG_meta_data.tsv.gz"))
+meta.data <- read.table(meta.path, sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(meta.data) <- meta.data$Sample
+
+# harmonise the sample names
+meta.data$SampID <- gsub(meta.data$CellOrigin, pattern="(st)|(nd)(rd)", replacement="")
+meta.data <- meta.data[intersect(colnames(thymus.counts), meta.data$Sample), c("Sample", "CellOrigin", "Class",
+                                                                               "HTO", "Age", "SortType", "Cluster")]
+colnames(meta.data) <- c("CellID", "SampID", "Class", "HTO", "Age", "SortType", "Cluster")
+meta.data$ClusterAnnot <- NA
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(1)] <- "mTEC.1"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(3)] <- "mTEC.2"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(14)] <- "mTEC.3"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(6)] <- "mTEC.4"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(20)] <- "mTEC.5"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(22)] <- "mTEC.6"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(16)] <- "mTEC.7"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(4)] <- "Intertypical.TEC.1"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(7)] <- "Intertypical.TEC.2"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(10)] <- "Intertypical.TEC.3"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(11)] <- "Intertypical.TEC.4"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(9)] <- "cTEC.1"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(13)] <- "cTEC.2"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(17)] <- "PostAire.mTEC.1"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(19)] <- "PostAire.mTEC.2"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(23)] <- "eTEC1"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(24)] <- "Prolif.TEC.1"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(12)] <- "Prolif.TEC.2"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(2)] <- "Prolif.TEC.3"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(15)] <- "Tuft.mTEC.1"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(18)] <- "Tuft.mTEC.2"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(5)] <- "Sca1.TEC.1"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(8)] <- "New.TEC.1"
+meta.data$ClusterAnnot[meta.data$Cluster %in% c(21)] <- "New.TEC.2"
+head(meta.data)
+```
+
+
+```{r}
+# pca
+reds.path <- bfcrpath(bfc, file.path("https://content.cruk.cam.ac.uk/",
+                                     "jmlab/thymus_data/ZsG_PCs.tsv.gz"))
+pca.dims <- read.table(reds.path, sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(pca.dims) <- pca.dims$Sample
+pca.dims <- pca.dims[rownames(meta.data), ]
+head(pca.dims)
+```
+
+
+```{r}
+# size factors
+sf.path <- bfcrpath(bfc, file.path("https://content.cruk.cam.ac.uk/",
+                                     "jmlab/thymus_data/sizefactors.tsv.gz"))
+size.factors <- read.table(sf.path, sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(size.factors) <- size.factors$Sample
+size.factors <- size.factors[rownames(meta.data), ]
+head(size.factors)
+```
+
+We will now put all of these together into a convenient `SingleCellExperiment` object.
+
+```{r}
+library(SingleCellExperiment)
+thymus.sce <- SingleCellExperiment(assays=list(counts=thymus.counts[, rownames(meta.data)]),
+                                   colData=meta.data, rowData=gene.df)
+rownames(thymus.sce) <- gene.info[, 1]
+
+# add the size factors
+sizeFactors(thymus.sce) <- size.factors$SumFactor
+
+reducedDim(thymus.sce, "PCA") <- as.matrix(pca.dims[, paste0("PC", 1:50)])
+saveRDS(thymus.sce, "~/Dropbox/Milo/simulations/data/ThymusDroplet_SCE.RDS")
+```
+
+
+
+# Session information
+
+```{r}
+sessionInfo()
+```
+
+
+
+
+
+
+
+

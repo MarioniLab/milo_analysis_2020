@@ -13,6 +13,7 @@ manifests, but only after performing a much larger experiment with ~90,000 singl
 perturbed states.
 
 ```{r, message=FALSE}
+library(batchelor)
 library(SingleCellExperiment)
 library(miloR)
 library(cowplot)
@@ -29,6 +30,7 @@ library(ggbeeswarm)
 library(colorspace)
 library(patchwork)
 library(enrichR)
+library(scater)
 ```
 
 We're loading in the data from an accompanying package that contains a few publicly available data sets. In this instance we've 
@@ -261,6 +263,7 @@ plotNhoodSizeHist(thymus.mylo)
 Most of our neighbourhoods contain about 30-40 cells; this should be sufficient for differential abundance testing with our experimental design.
 
 ```{r, warning=FALSE, message=FALSE}
+colData(thymus.mylo)$ExpSamp <- thymus.meta[colnames(thymus.mylo), ]$ExpSamp
 thymus.mylo <- countCells(thymus.mylo, meta.data=thymus.meta, samples="ExpSamp")
 ```
 
@@ -285,6 +288,7 @@ testing.meta$AgeInt <- as.numeric(as.character(gsub(testing.meta$Condition, patt
 
 
 ```{r, warning=FALSE, message=FALSE}
+rownames(testing.meta) <- testing.meta$Sample
 thymus.res <- testNhoods(thymus.mylo, design=~AgeInt, design.df=testing.meta, fdr.weighting="k-distance")
 thymus.res$Diff <- sign(thymus.res$logFC)
 thymus.res$Diff[thymus.res$SpatialFDR > 0.1] <- 0
@@ -321,7 +325,7 @@ To do this we first build the neighbourhood graph using `buildNhoodGraph`, then 
 ```{r, warning=FALSE, fig.height=5.95, fig.width=6.95}
 rownames(fr.df) <- fr.df$Sample
 reducedDim(thymus.mylo, "FR") <- fr.df[, c("V1", "V2")]
-thymus.mylo <- buildNhoodGraph(thymus.mylo, overlap=30)
+thymus.mylo <- buildNhoodGraph(thymus.mylo, overlap=5)
 plotNhoodGraphDA(thymus.mylo, layout="UMAP", milo_res=thymus.res, alpha=0.1)
 
 ggsave("~/Dropbox/Milo/figures/MouseThymus_UMAP_nhoods-logFC.png",
@@ -365,19 +369,8 @@ colData(thymus.mylo)$Cluster <- factor(thymus.meta[colnames(thymus.mylo), ]$Clus
 colData(thymus.mylo)$Age <- ordered(thymus.meta[colnames(thymus.mylo), ]$AgeInt, levels=c(1, 4, 16, 32, 52))
 colData(thymus.mylo)$SortDay <- thymus.meta[colnames(thymus.mylo), ]$SortDay
 
-add_nhood_coldata_to_res <- function(thymus.mylo, milo_res, coldata_col){
-  nhood_counts <- sapply(seq_along(nhoods(thymus.mylo)), function(x) table(colData(thymus.mylo)[as.vector(nhoods(thymus.mylo)[[x]]), coldata_col]))
-  nhood_counts <- t(nhood_counts)
-  rownames(nhood_counts) <- seq_along(nhoods(thymus.mylo))
-  max_val <- apply(nhood_counts, 1, function(x) colnames(nhood_counts)[which.max(x)])
-  max_frac <- apply(nhood_counts, 1, function(x) max(x)/sum(x))
-  milo_res[coldata_col] <- max_val
-  milo_res[paste0(coldata_col, "_fraction")] <- max_frac
-  return(milo_res)
-}
-
-thymus.res <- add_nhood_coldata_to_res(thymus.mylo, thymus.res, "Age")
-thymus.res <- add_nhood_coldata_to_res(thymus.mylo, thymus.res, "Cluster")
+thymus.res <- annotateNhoods(thymus.mylo, thymus.res, "Age")
+thymus.res <- annotateNhoods(thymus.mylo, thymus.res, "Cluster")
 ```
 
 
@@ -469,7 +462,7 @@ keep.genes <- rownames(thymus.mylo)[!grepl(rownames(thymus.mylo), pattern="(Gm)|
 thymus.markers <- findNhoodMarkers(thymus.mylo, thymus.res, 
                                    subset.nhoods=thymus.res$Cluster %in% c("Intertypical TEC"),
                                    subset.row=keep.genes, return.groups=TRUE,
-                                   da.fdr=0.1, overlap=10, compute.new=FALSE, gene.offset=TRUE)
+                                   da.fdr=0.1, overlap=0, compute.new=FALSE, gene.offset=FALSE)
 # thymus.markers$GeneID <- rownames(thymus.mylo):
 itec.groups <- thymus.markers$groups
 thymus.markers <- thymus.markers$dge
@@ -523,7 +516,44 @@ head(itec.enrichr[itec.enrichr$Adjusted.P.value < 0.1, ])
 ```
 
 
+## Valiating DA findings
 
+```{r}
+# keep.genes <- rownames(thymus.mylo)[rowMeans(logcounts(thymus.mylo[colData(thymus.mylo)$Cluster %in% c("Intertypical TEC")])) >= 0.1]
+keep.genes <- rownames(thymus.mylo)[!grepl(rownames(thymus.mylo), pattern="(Gm)|(Rik)")]
+
+thymus.markers <- findNhoodMarkers(thymus.mylo, thymus.res, 
+                                   subset.row=keep.genes, return.groups=TRUE,
+                                   da.fdr=0.1, overlap=0, compute.new=FALSE, gene.offset=FALSE)
+# thymus.markers$GeneID <- rownames(thymus.mylo):
+thymus.groups <- thymus.markers$groups
+thymus.markers <- thymus.markers$dge
+thymus.markers$GeneID <- keep.genes
+```
+
+In Baran-Gale _et al._, we validated our finding that accumulating progenitors is coincident with a restriction in mTEC differentiation. These results with Milo 
+suggest that the mTEC-biased progenitors are where the defect manifests. To validate this we can look at the similarity to cells from our larger droplet 
+scRNAseq experiment, and how the abundance of these cells changes across ages.
+
+I will pull in the 10X data from our public-facing FTP server, which I've then organised into a `SingleCellExperiment` object for convenience, and compute the 
+distance from the cells in the DA nhoods to the cells in the larger data set. Then compute the abundance of these cells in each replicated sample and plot how 
+they change across ages.
+
+```{r, warning=FALSE, message=FALSE}
+droplet.sce <- readRDS("~/Dropbox/Milo/simulations/data/ThymusDroplet_SCE.RDS")
+# droplet.sce <- scuttle::logNormCounts(droplet.sce)
+```
+
+I will need to batch-correct the 2 data sets together first, which I'll use MNN for, once the cells are projected into the same PC space.
+
+```{r, message=FALSE}
+common.genes <- intersect(rowData(thymus.mylo)$ensembl_gene_id, rownames(droplet.sce))
+rownames(thymus.mylo) <- rowData(thymus.mylo)$ensembl_gene_id
+rowData(droplet.sce) <- rowData(droplet.sce)[, c("ensembl_gene_id", "external_gene_name")]
+colnames(rowData(droplet.sce)) <- c("ensembl_gene_id", "symbol")
+
+multibatch.pca <- multiBatchPCA(droplet.sce[common.genes, ], thymus.mylo[common.genes, ], subset.row=common.genes)
+```
 
 
 
