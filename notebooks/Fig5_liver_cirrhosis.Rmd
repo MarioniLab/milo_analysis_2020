@@ -95,7 +95,10 @@ plotNhoodSizeHist(liver_milo, bins=150)
 Then we make a design matrix for the differential test, assigning samples to biological conditions.
 
 ```{r}
-liver_meta <- as.tibble(colData(liver_milo)[,c("dataset","condition")])
+colData(liver_milo)[['sort']] <- str_remove(colData(liver_milo)[['dataset']], ".+_")
+colData(liver_milo)[['sort']] <- str_remove(colData(liver_milo)[['sort']], "A|B")
+
+liver_meta <- as.tibble(colData(liver_milo)[,c("dataset","condition", 'sort')])
 liver_meta <- distinct(liver_meta) %>%
   mutate(condition=factor(condition, levels=c("Uninjured", "Cirrhotic"))) %>%
   column_to_rownames("dataset")
@@ -104,10 +107,32 @@ liver_meta <- distinct(liver_meta) %>%
 Now we can count cells in neighbourhoods and perform the DA test.
 
 ```{r}
-liver_milo <- countCells(liver_milo, samples = "dataset", meta.data = data.frame(colData(liver_milo)[,c("dataset","condition")]) )
+liver_milo <- countCells(liver_milo, samples = "dataset", meta.data = data.frame(colData(liver_milo)[,c("dataset","condition",'sort')]) )
 liver_milo <- calcNhoodDistance(liver_milo, d=11)
 milo_res <- testNhoods(liver_milo, design = ~ condition, design.df = liver_meta)
+milo_res_sort <- testNhoods(liver_milo, design = ~ sort + condition, design.df = liver_meta)
 ```
+
+```{r}
+compare_da_df <- left_join(milo_res_sort, milo_res, by="Nhood", suffix=c("_sort", "_nosort")) %>%
+  {annotateNhoods(liver_milo, ., 'annotation_lineage')} 
+
+compare_da_df %>%
+  ggplot(aes(-log10(SpatialFDR_sort), -log10(SpatialFDR_nosort))) +
+  geom_point(size=0.8) +
+  geom_point(data=. %>% filter(annotation_lineage=="Endothelia"), color="red")
+plot(milo_res_sort$SpatialFDR, milo_res$SpatialFDR)
+```
+```{r}
+
+donor_cnts <- nhoodCounts(countCells(liver_milo, samples = "liver", meta.data = data.frame(colData(liver_milo)[,c("dataset","condition",'liver')]) ))
+
+melt(as.matrix(nhoodCounts(liver_milo)), varnames=c("Nhood", "dataset")) %>%
+  mutate(donor=str_remove(dataset, "_.+")) %>%
+  ggplot(aes(Nhood, value, fill=dataset)) +
+  geom_col(position="fill")
+```
+
 
 ## Run other methods for DA analysis
 
@@ -161,7 +186,7 @@ We can visualize DA neighbourhoods building an abstracted graph
 
 ```{r, fig.width=14, fig.height=10}
 liver_milo <- buildNhoodGraph(liver_milo)
-plotNhoodGraphDA(liver_milo, milo_res, alpha = 0.05, size_range=c(2,6))
+plotNhoodGraphDA(liver_milo, milo_res, alpha = 0.1, size_range=c(2,6))
 ```
 
 ```{r}
@@ -309,6 +334,7 @@ pl2 <- milo_res %>%
   summarise(pred_DA=dplyr::first(pred_DA), annotation_lineage=dplyr::first(annotation_lineage)) %>%
   mutate(end=ifelse(pred_DA=="healthy", 0, 1),
          start=ifelse(pred_DA=="healthy", 1, 0)) %>%
+  filter(!is.na(annotation_lineage)) %>%
   ggplot(aes(annotation_indepth, start, xend = annotation_indepth, yend = end, color=pred_DA)) +
   geom_segment(size=1,arrow=arrow(length = unit(0.1, "npc"), type="closed")) +
   coord_flip() +
@@ -362,7 +388,7 @@ endo_umap <- cbind(umap_df, condition=endo_milo$condition) %>%
 
 ```{r, fig.width=8, fig.height=4, message=FALSE, warning=FALSE}
 liver_milo2 <- liver_milo
-subset.nhoods <- str_detect(milo_res$annotation_indepth, "Endo")
+subset.nhoods <- which(str_detect(milo_res$annotation_indepth, "Endo"))
 reducedDim(liver_milo2, "UMAP")[colnames(endo_milo),] <- reducedDim(endo_milo, "UMAP") 
 
 endo_gr <-
@@ -381,6 +407,29 @@ fig4_bright1 <- ((endo_umap + endo_gr ) +
                 )) 
 fig4_bright1
 ```
+```{r}
+plotNhoodGraphDA(
+  liver_milo, milo_res,
+  subset.nhoods = subset.nhoods, 
+  layout = igraph::layout_nicely,
+  size_range=c(1,4),
+  # ) =)[1:(length()-1)], 
+  alpha = 0.1
+  )
+```
+```{r}
+nh_graph <- nhoodGraph(liver_milo)[subset.nhoods,subset.nhoods]
+nh_graph <- graph_from_adjacency_matrix(nh_graph)
+
+
+col_vals <- colData(x)[as.numeric(vertex_attr(nh_graph)$name), colour_by]
+V(nh_graph)$colour_by <- ifelse(milo_res[subset.nhoods,"SpatialFDR"] > 0.1, 0, milo_res[subset.nhoods,"logFC"])
+ggraph(simplify(nh_graph)) +
+      geom_edge_link0(edge_colour = "grey66", edge_alpha=0.2)   +
+      geom_node_point(aes(fill = colour_by), shape=21, size=2) +
+  scale_fill_gradient2()
+```
+
 
 ### Close-up on Cholangiocytes
 
@@ -499,23 +548,75 @@ liver_milo <- calcNhoodExpression(liver_milo, assay = "logcounts", subset.row = 
 
 ## Endothelia
 
-Group neighbourhoods
-
 ```{r}
+```
+
+
+```{r, fig.height=5, fig.width=14}
+
 set.seed(42)
-milo_res_endogroups <- groupNhoods(liver_milo, milo_res, max.lfc.delta = 0.5, overlap = 1)
+milo_res_endogroups <- groupNhoods(liver_milo, milo_res, max.lfc.delta = 1, overlap = 1)
+
+p1 <- plotNhoodGroups(liver_milo, milo_res_endogroups, 
+                size_range=c(1,3)) 
+
+# p2 <- plotDAbeeswarm(milo_res_endogroups, group.by = "NhoodGroup") +
+#   facet_grid(annotation_lineage~., scales="free", space="free")
+
+# milo_res_endogroups %>%
+#   group_by(annotation_lineage,  NhoodGroup) %>%
+#   summarise(n=n()) %>%
+#   arrange(n) %>%
+#   mutate(NhoodGroup = factor(NhoodGroup, levels=unique(NhoodGroup))) %>%
+#   mutate(annotation_lineage = factor(annotation_lineage, levels=unique(annotation_lineage))) %>%
+#   ggplot(aes(annotation_lineage, NhoodGroup, fill=n)) +
+#   geom_tile()
+#   geom_jitter() +
+#   theme_bw(base_size=18) +
+#   scale_color_gradient2(mid = "grey")
+
+milo_res_endogroups <- annotateNhoods(liver_milo, milo_res_endogroups, 'annotation_lineage')
+
+p2 <- plotDAbeeswarm(milo_res_endogroups, group.by = 'NhoodGroup') +
+  facet_grid(annotation_lineage~., scales="free", space="free")
+
+
+## Plot expression in T cell neighbourhoods
+markers_df <- read_csv("~/mount/gdrive/milo/STable3_Ramachandran.csv")
+tcell_marker_genes <- 
+  markers_df %>%
+  filter(cluster %in% c("Tcell", "ILC")) %>%
+  top_n(30, myAUC) %>%
+  pull(gene)
+
+p3 <- plotNhoodExpressionGroups(liver_milo, milo_res_endogroups, features = unique(tcell_marker_genes), 
+                          subset.nhoods = milo_res_endogroups$NhoodGroup %in% c("23", "20", "18", "14"),
+                          scale=TRUE, cluster_features = TRUE,show_rownames = TRUE
+                          ) +
+  theme(strip.text.x = element_text(angle=90))
+```
+```{r, fig.width=15, fig.height=10}
+(((p1 + theme())/ (p3 + theme(strip.text = element_text(size=10, angle=45)))) + 
+  plot_layout(heights = c(1.1,1), guides="collect"
+              )| 
+  (
+    p2 + theme_bw(base_size=16) + theme(strip.text.y = element_text(angle=0))
+    )) + 
+  plot_layout(widths = c(1.4, 1)) +
+  plot_annotation(tag_levels = c("A", "C", "B") ) +
+  ggsave("~/mount/gdrive/milo/Figures/liver_v2/RFig_grouping.pdf", width=15, height = 12) +
+  ggsave("~/mount/gdrive/milo/Figures/liver_v2/RFig_grouping.png", width=15, height = 12)
 ```
 
-Look at groups in endothelial cells 
+Group endothelial cells by logFC and DA results
 
 ```{r}
-plotDAbeeswarm(milo_res_endogroups, group.by = "NhoodGroup", alpha = 0.1, 
-               subset.nhoods = milo_res_endogroups$annotation_lineage=="Endothelia")
-```
+## Group neighbourhoods by DA outcome
+milo_res_endogroups$NhoodGroup <- NA
+milo_res_endogroups$NhoodGroup <- ifelse((milo_res_endogroups$annotation_lineage == "Endothelia") & (milo_res_endogroups$SpatialFDR < 0.1) & (milo_res_endogroups$logFC < -2), "54", milo_res_endogroups$NhoodGroup)
+milo_res_endogroups$NhoodGroup <- ifelse((milo_res_endogroups$annotation_lineage == "Endothelia") & (milo_res_endogroups$SpatialFDR < 0.1) & (milo_res_endogroups$logFC > 2), "70", milo_res_endogroups$NhoodGroup)
 
-groups 54 and 70 contain most of the DA neighbourhoods
 
-```{r}
 liver_milo2 <- liver_milo
 subset.nhoods <- str_detect(milo_res$annotation_indepth, "Endo")
 reducedDim(liver_milo2, "UMAP")[colnames(endo_milo),] <- reducedDim(endo_milo, "UMAP") 
@@ -532,8 +633,8 @@ endo_gr_groups <- plotNhoodGroups(liver_milo2, milo_res_endogroups[milo_res_endo
 ```
 
 ```{r, fig.width=18, fig.height=5}
-fig4_bright1 <- ((endo_umap + endo_gr + endo_gr_groups ) + 
-  plot_layout(widths = c(1,2,2), guides="collect"
+fig4_bright1 <- ((endo_umap + endo_gr ) + 
+  plot_layout(widths = c(1,2), guides="collect"
                 )) &
   theme(legend.box = "horizontal", legend.position = "top", legend.direction = "vertical")
 fig4_bright1
@@ -602,15 +703,16 @@ fig4_bbright <-
 
   
 pl3 <- fig4_bbright$data %>%
-  ggplot(aes(logFC_rank, 1,fill=as.factor(NhoodGroup))) +
+  ggplot(aes(logFC_rank, 1,fill=logFC)) +
   geom_tile() +
       theme_classic(base_size=16) +
     ylab("") +
-    scale_fill_manual(values=c("54"=brewer.pal(4, "Spectral")[2], "70"=brewer.pal(4, "Spectral")[3]), 
-                    labels=c("54"="Uninjured group", '70'= "Cirrhotic group"),
-                    na.value="white",
-                    name = "Nhood group"
-                    ) +
+  scale_fill_gradient2(name="DA logFC") +
+    # scale_fill_manual(values=c("54"=brewer.pal(4, "Spectral")[2], "70"=brewer.pal(4, "Spectral")[3]), 
+    #                 labels=c("54"="Uninjured group", '70'= "Cirrhotic group"),
+    #                 na.value="white",
+    #                 name = "Nhood group"
+    #                 ) +
     scale_x_continuous(expand = c(0.01, 0)) +
     theme(axis.text = element_blank(), axis.ticks = element_blank(), axis.line = element_blank(), 
           axis.title = element_blank())
@@ -705,7 +807,7 @@ subset.nhoods <- str_detect(milo_res$annotation_indepth, "Chol")
 reducedDim(liver_milo2, "UMAP")[colnames(chol_milo),] <- reducedDim(chol_milo, "UMAP") 
 plotNhoodGroups(liver_milo2, milo_res_cholgroups[milo_res_cholgroups$annotation_lineage=="Cholangiocytes",], 
                 show_groups = c("49","38"),
-                subset.nhoods =  milo_res_cholgroups$NhoodGroup %in%c("49","38"))
+                subset.nhoods =  milo_res_cholgroups$annotation_lineage =="Cholangiocytes")
 
 ```
 
@@ -753,18 +855,6 @@ volcano_chol
 
 ### GO term analysis
 
-<!-- ```{r} -->
-<!-- ca_signature <- m_t2g %>% -->
-<!--   filter(str_detect(gs_name, "POSITIVE_REGULATION_OF_CALCIUM_ION_TRANSPORT"))  %>% -->
-<!--   filter(gene_symbol %in% rownames(liver_milo)) -->
-
-<!-- marker.df.chol %>% -->
-<!--   filter(GeneID %in% ca_signature$gene_symbol & adj.P.Val_49 < 0.1) %>% -->
-<!--   ggplot(aes(adj.P.Val_49)) + -->
-<!--   geom_histogram() -->
-<!-- ``` -->
-
-
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 marker_genes_chol <- marker.df.chol %>%
   dplyr::filter(adj.P.Val_49 < 0.05 & logFC_49 > 0) %>%
@@ -795,7 +885,32 @@ go_chol_up
 ```{r}
 em_res_up_chol
 ```
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+marker_genes_chol_down <- marker.df.chol %>%
+  dplyr::filter(adj.P.Val_49 < 0.05 & logFC_49 < 0) %>%
+  pull(GeneID)
 
+em_down_chol <- enricher(marker_genes_chol_down, TERM2GENE=m_t2g, pAdjustMethod = "fdr", 
+                  universe = rownames(liver_milo)
+                  )
+
+em_res_down_chol <- em_down_chol@result[em_down_chol@result$qvalue < 0.1,] %>%
+  dplyr::select(- c(Description))
+```
+
+```{r, fig.height=8, fig.width=15, warning=FALSE, message=FALSE}
+go_chol_down <- em_res_down_chol %>%
+  top_n(20, -log10(qvalue)) %>%
+  mutate(Term=factor(ID, levels=rev(unique(ID)))) %>%
+  ggplot(aes(Term, -log10(qvalue))) +
+  geom_point() +
+  coord_flip() +
+  xlab("GO Biological Function") + ylab("-log10(Adj. p-value)") +
+  theme_bw(base_size=18) +
+  ggtitle("Cirrhotic cholangiocytes")
+
+go_chol_down
+```
 
 ---
 
@@ -854,17 +969,18 @@ plot_grid(p1, p3, ncol=2, rel_widths = c(1,1)) +
 ```
 
 ```{r, fig.height=10, fig.width=8}
-plot_grid( frac_hist + theme_bw(base_size=18),
+plot_grid(
   go_endo_up+ theme(plot.title = element_text(hjust = 1),
                                    axis.title.x = element_text(hjust = 1)), 
                  go_endo_down+ theme(plot.title = element_text(hjust = 1),
                                      axis.title.x = element_text(hjust = 1)), 
                  label_size = 18,
                  ncol=1,
-                 rel_heights = c(1.2,2,2), rel_widths = c(1,2,2),
-                labels = c("A", "B","C")
+                 rel_heights = c(2,2), rel_widths = c(2,2),
+                labels = c("A", "B")
   ) +
-  ggsave("~/mount/gdrive/milo/Figures/liver_v2/suppl_fig6.pdf", height = 12, width=12)
+  ggsave("~/mount/gdrive/milo/Figures/liver_v2/suppl_fig6.pdf", height = 12, width=12) +
+  ggsave("~/mount/gdrive/milo/Figures/liver_v2/suppl_fig6.png", height = 12, width=12)
 
 
 ```
