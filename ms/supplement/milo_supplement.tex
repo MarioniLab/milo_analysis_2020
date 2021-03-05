@@ -124,8 +124,8 @@ We wish to emphasize that, when confounders are present, an appropriate experime
 
 \emph{Milo} uses a k-NN graph computed based on similarities in gene expression space as a representation of the phenotypic manifold in which cells lie. While \emph{Milo} can be used on graphs built with different similarity kernels, here we compute the graph as follows: given the reduced dimension matrix \(X_{PC}\) of dimensions \(M \times d\), for each cell \(j\), the Euclidean distances to its \(K\) nearest neighbors in \(X_{PC}\) are computed and stored in a \(M \times M\) adjacency matrix \(D\). Then, \(D\) is made symmetrical, such that cells \(j\) and \(l\) are nearest neighbors (i.e.~connected by an edge) if either \(j\) is a nearest neighbor of \(l\) or \(l\) is a nearest neighbor of \(j\). The k-NN graph is encoded by the undirected symmetric version of \(\tilde{D}\) of \(D\), where each cell has at least \(K\) nearest neighbors.
 
-\hypertarget{definition-of-cell-neighbourhoods-and-index-sampling-algorithm}{%
-\subsubsection{Definition of cell neighbourhoods and index sampling algorithm}\label{definition-of-cell-neighbourhoods-and-index-sampling-algorithm}}
+\hypertarget{nh}{%
+\subsubsection{Definition of cell neighbourhoods and index sampling algorithm}\label{nh}}
 
 Next, we identify a set of representative cell neighbourhoods on the k-NN graph. We define the neighbourhood \(n_i\) of cell \(c_i\) as the group of cells that are connected to \(c_i\) by an edge in the graph. We refer to \(c_i\) with \(i=1,2,...,N\) as the index cell of the neighbourhood, so that \(N \leq M\).
 Formally, a cell \(c_j\) belongs to neighbourhood \(n_i\) if \(\tilde{D}_{i,j} > 0\).
@@ -195,22 +195,21 @@ In this section we provide practical guidelines to select default parameters for
 \addcontentsline{toc}{paragraph}{Selecting the number of nearest neighbors \(K\)}
 
 For construction of the k-NN graph and neighbourhoods, the user has to select the number of nearest neighbors \(K\) to use for graph construction.
-The choice of \(K\) influences the distribution of cell counts within neighbourhoods, as \(K\) represents the lower limit in the number of cells in each neighbourhood (\(\sum(y_{n,s})\)). Hence, if \(K\) is too small the neighbourhoods might not contain enough cells to detect differential abundance. On the other hand, increasing \(K\) too much might lead to ``oversmoothing'' of neighbourhoods, with the inability to detect changes in abundance. We illustrate this trade-off by testing for DA setting increasing values for \(K\) in the mouse gastrulation dataset with synthetic condition labels on 4 different populations (Suppl.Fig\ldots.A).
-
-In order to perform DA testing with sufficient statistical power, the analyst should consider the number of experimental samples \(S\) (that will correspond to the columns in the count matrix for DA testing) and the desired minimum number of cells per neighbourhood and experimental sample. For example, having on average 5 cells per sample in each neighbourhood allows to detect n fold changes between 2 experimental conditions.
-The median number of cells per sample in each neighbourhood \(\hat{y}_{ns}\) increases with the total neighbourhood size (Suppl.Fig\ldots.B), with:
+The choice of \(K\) influences the distribution of cell counts within neighbourhoods, as \(K\) represents the lower limit in the number of cells in each neighbourhood (\(\sum(y_{n,s})\)). Hence, if \(K\) is too small the neighbourhoods might not contain enough cells to detect differential abundance. In order to perform DA testing with sufficient statistical power, the analyst should consider the number of experimental samples \(S\) (that will correspond to the columns in the count matrix for DA testing) and the desired minimum number of cells per neighbourhood and experimental sample. For example, having on average 5 cells per sample in each neighbourhood allows to detect n fold changes between 2 experimental conditions.
+The median number of cells per sample in each neighbourhood \(\hat{y}_{ns}\) increases with the total neighbourhood size (Suppl.Fig\ldots.A), with:
 
 \[
 \hat{y}_{ns} \sim \frac{\sum_s y_{ns}}{S}
 \]
-Therefore a conservative approach is to select \(K \geq (S \times\) 3-5.
-As the average neighbouhood size increases with \(K\),
-we recommend to pick \(K\) by inspecting the histogram of neighbourhood sizes after sampling of neighbourhoods (Suppl.Fig\ldots.C). In order to have at least 3-5 cells per sample, all the neighbourhoods should be bigger than \(S \times 3-5\).
-We provide the utility function \texttt{plotNhoodSizeHist} to visualize the neighbourhood size distribution as part of our R package.
+Therefore a conservative approach to minimize false positives is to select \(K \geq S \times\) 3-5.
+
+On the other hand increasing \(K\) increases power, but can come at the cost of FDR control, as we illustrate by testing for DA with increasing values for \(K\) in the mouse gastrulation dataset with synthetic condition labels on 4 different populations (Suppl.Fig\ldots.A). We recommend to inspect the histogram of neighbourhood sizes after sampling of neighbourhoods (Suppl.Fig\ldots.B) and to consider what is the number of cells that would be considered a ``neighbourhood'' in the dataset at hand. For example, if the goal of DA analysis is to search for subtle differences within cell type populations, the mean neighbourhood size should not exceed \textasciitilde{} 10\% of the smallest cluster size. We provide the utility function \texttt{plotNhoodSizeHist} to visualize the neighbourhood size distribution as part of our R package.
 
 \hypertarget{selecting-the-proportions-of-cells-sampled-as-neighbourhood-indices-p}{%
 \paragraph*{\texorpdfstring{Selecting the proportions of cells sampled as neighbourhood indices \(p\)}{Selecting the proportions of cells sampled as neighbourhood indices p}}\label{selecting-the-proportions-of-cells-sampled-as-neighbourhood-indices-p}}
 \addcontentsline{toc}{paragraph}{Selecting the proportions of cells sampled as neighbourhood indices \(p\)}
+
+The proportion of cells sampled for search of neighbourhood indices can affect the total number of neighbourhoods used for analysis, but this number will converge for high proportions thanks to the sampling refinement step described in section \ref{nh} (Suppl.Fig. 1A). In practice, we recommend initiating neighbourhood search with \(p=0.05\) for datasets with more than 100k cells and \(p=0.1\) otherwise, which we have found to give appropriate coverage across the k-NN graph while reducing the computational and multiple-testing burden. We recommend increasing \(p > 0.1\) only if the dataset appears to contain rare disconnected subpopulations.
 
 \hypertarget{references}{%
 \section*{References}\label{references}}
