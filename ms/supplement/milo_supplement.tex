@@ -83,7 +83,7 @@
 \title{Supplementary information for
 \textbf{Differential cell-state abundance testing using k-NN graphs with \emph{Milo}}}
 \author{Emma Dann, \and Neil C. Henderson, \and Sarah A. Teichmann, \and Michael D. Morgan, \and John C. Marioni}
-\date{05 March, 2021}
+\date{08 March, 2021}
 
 \begin{document}
 \maketitle
@@ -117,12 +117,12 @@ Defining the best tool for this task is beyond the scope of this work, a large n
 
 In addition, the effect of nuisance covariates should be modelled in the generalized linear model used for DA testing in \emph{Milo} to minimize the emergence of false positives in case of imperfect batch correction (see Section \ref{testDA}) (Fig.2D).
 
-We wish to emphasize that, when confounders are present, an appropriate experimental design is crucial to obtain reliable results from differential abundance analysis: if nuisance factors are 100\% confounded with the biological condition used for differential abundance (e.g.~if the samples from diseased and healthy donors are processed in separate sequencing batches), there is no way to disentangle the abundance differences that are truly driven by the biology of interest. We note that in a similar case applying a batch integration strategy before graph construction could lead to a loss of biological signal.
+We wish to emphasize that, when confounders are present, an appropriate experimental design is crucial to obtain reliable results from differential abundance analysis: if nuisance factors are 100\% confounded with the biological condition used for differential abundance (e.g.~if the samples from diseased and healthy donors are processed in separate sequencing batches), there is no way to disentangle the abundance differences that are truly driven by the biology of interest. In a similar case applying a batch integration strategy before graph construction could lead to a loss of biological signal.
 
 \hypertarget{building-the-k-nn-graph}{%
 \subsubsection{Building the k-NN graph}\label{building-the-k-nn-graph}}
 
-\emph{Milo} uses a k-NN graph computed based on similarities in gene expression space as a representation of the phenotypic manifold in which cells lie. While \emph{Milo} can be used on graphs built with different similarity kernels, here we compute the graph as follows: given the reduced dimension matrix \(X_{PC}\) of dimensions \(M \times d\), for each cell \(j\), the Euclidean distances to its \(K\) nearest neighbors in \(X_{PC}\) are computed and stored in a \(M \times M\) adjacency matrix \(D\). Then, \(D\) is made symmetrical, such that cells \(j\) and \(l\) are nearest neighbors (i.e.~connected by an edge) if either \(j\) is a nearest neighbor of \(l\) or \(l\) is a nearest neighbor of \(j\). The k-NN graph is encoded by the undirected symmetric version of \(\tilde{D}\) of \(D\), where each cell has at least \(K\) nearest neighbors.
+\emph{Milo} uses a k-NN graph computed based on similarities in gene expression space as a representation of the phenotypic manifold in which cells lie. While \emph{Milo} can be used on graphs built with different similarity kernels, here we compute the graph as follows: given the reduced dimension matrix \(X_{PC}\) of dimensions \(M \times d\), for each cell \(j\), the Euclidean distances to its \(K\) nearest neighbors in \(X_{PC}\) are computed and stored in a \(M \times M\) adjacency matrix \(D\). Then, \(D\) is made symmetrical, such that cells \(c_i\) and \(c_j\) are nearest neighbors (i.e.~connected by an edge) if either \(c_i\) is a nearest neighbor of \(c_j\) or \(c_j\) is a nearest neighbor of \(c_i\). The k-NN graph is encoded by the undirected symmetric version of \(\tilde{D}\) of \(D\), where each cell has at least \(K\) nearest neighbors.
 
 \hypertarget{nh}{%
 \subsubsection{Definition of cell neighbourhoods and index sampling algorithm}\label{nh}}
@@ -175,9 +175,7 @@ Estimation of \(\beta_{ng}\) for each \(n\) and \(g\) is performed by fitting th
 \paragraph*{Adaptation of Spatial FDR to neighbourhoods}\label{adaptation-of-spatial-fdr-to-neighbourhoods}}
 \addcontentsline{toc}{paragraph}{Adaptation of Spatial FDR to neighbourhoods}
 
-WeTo account for the non-independence of spatially overlapping neighbourhoods by applying a weighted version of the Benjamini-Hochberg (BH) method, where P values are weighted by the reciprocal of the neighbourhood connectivity, we build upon as an adaptation to graphs of a previously described strategy to control the spatial False Discovery Rate (FDR) {[}6{]}.
-
-To control for multiple testing, we need to account for the overlap between neighbourhoods, that makes the differential abundance tests non-independent. We apply a weighted version of the Benjamini-Hochberg (BH) method, where P values are weighted by the reciprocal of the neighbourhood connectivity, as an adaptation to graphs of the Spatial FDR method introduced by \(Cydar\) {[}\protect\hyperlink{ref-lunTestingDifferentialAbundance2017}{11}{]}.
+To control for multiple testing, we need to account for the overlap between neighbourhoods, that makes the differential abundance tests non-independent. We apply a weighted version of the Benjamini-Hochberg (BH) method, where p-values are weighted by the reciprocal of the neighbourhood connectivity, as an adaptation to graphs of the Spatial FDR method introduced by \(Cydar\) {[}\protect\hyperlink{ref-lunTestingDifferentialAbundance2017}{11}{]}.
 Formally, to control for FDR at a selected threshold \(\alpha\) we reject null hypothesis \(i\) where the associated p-value is less than the threshold:
 
 \[
@@ -188,7 +186,7 @@ Where the weight \(w_{(i)}\) is the reciprocal of the neighbourhood connectivity
 \hypertarget{guidelines-on-parameter-choice}{%
 \subsection{Guidelines on parameter choice}\label{guidelines-on-parameter-choice}}
 
-In this section we provide practical guidelines to select default parameters for k-NN graph and neighbourhood construction for DA analysis with Milo. We recognize results will also be impacted by choices made during feature selection and dimensionality reduction. However these depend strongly on the nature of the single-cell dataset used as input. For example feature selection strategies suitable for UMI-based scRNA-seq data might be suboptimal for data generated with non-UMI protocols, or dimensionality reduction methods alternative to PCA might be used for single-cell epigenomics data. We point the reader to existing resources and heuristics for the application to scRNA-seq in section \ref{pp}.
+In this section we provide practical guidelines to select default parameters for k-NN graph and neighbourhood construction for DA analysis with Milo. We recognize that DA analysis will also be impacted by choices made during feature selection and dimensionality reduction. However these depend strongly on the nature of the single-cell dataset used as input. For example feature selection strategies suitable for UMI-based scRNA-seq data might be suboptimal for data generated with non-UMI protocols, or dimensionality reduction methods alternative to PCA might be used for single-cell epigenomics data. We point the reader to existing resources and heuristics for the application to scRNA-seq in section \ref{pp}.
 
 \hypertarget{selecting-the-number-of-nearest-neighbors-k}{%
 \paragraph*{\texorpdfstring{Selecting the number of nearest neighbors \(K\)}{Selecting the number of nearest neighbors K}}\label{selecting-the-number-of-nearest-neighbors-k}}
@@ -203,7 +201,7 @@ The median number of cells per sample in each neighbourhood \(\hat{y}_{ns}\) inc
 \]
 Therefore a conservative approach to minimize false positives is to select \(K \geq S \times\) 3-5.
 
-On the other hand increasing \(K\) increases power, but can come at the cost of FDR control, as we illustrate by testing for DA with increasing values for \(K\) in the mouse gastrulation dataset with synthetic condition labels on 4 different populations (Suppl.Fig\ldots.A). We recommend to inspect the histogram of neighbourhood sizes after sampling of neighbourhoods (Suppl.Fig\ldots.B) and to consider what is the number of cells that would be considered a ``neighbourhood'' in the dataset at hand. For example, if the goal of DA analysis is to search for subtle differences within cell type populations, the mean neighbourhood size should not exceed \textasciitilde{} 10\% of the smallest cluster size. We provide the utility function \texttt{plotNhoodSizeHist} to visualize the neighbourhood size distribution as part of our R package.
+On the other hand increasing \(K\) increases power, but can come at the cost of FDR control, as we illustrate by testing for DA with increasing values for \(K\) in the mouse gastrulation dataset with synthetic condition labels on 4 different populations (Suppl.Fig\ldots.A). We recommend to inspect the histogram of neighbourhood sizes after sampling of neighbourhoods (Suppl.Fig\ldots.B) and to consider what is the number of cells that would be considered a ``neighbourhood'' in the dataset at hand. Depending on the expected lower-limit of the size of rare sub-populations, the mean neighbourhood size should be no more than 10\% of this value. We provide the utility function \texttt{plotNhoodSizeHist} to visualize the neighbourhood size distribution as part of our R package.
 
 \hypertarget{selecting-the-proportions-of-cells-sampled-as-neighbourhood-indices-p}{%
 \paragraph*{\texorpdfstring{Selecting the proportions of cells sampled as neighbourhood indices \(p\)}{Selecting the proportions of cells sampled as neighbourhood indices p}}\label{selecting-the-proportions-of-cells-sampled-as-neighbourhood-indices-p}}
