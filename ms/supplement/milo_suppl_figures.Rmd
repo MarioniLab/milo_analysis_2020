@@ -76,6 +76,11 @@ knitr::include_graphics("suppl_figs/suppl_fig6.pdf", auto_pdf = TRUE)
 (E) Volcano plot for DGE test on cholangiocytes DA subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
 (F) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.
 
+```{r sup-fig-6, fig.pos="ht", fig.cap="(ref:sup-fig6)", echo=FALSE}
+knitr::include_graphics("suppl_figs/suppl_fig6.pdf", auto_pdf = TRUE)
+```
+
+
 \newpage
 
 # Supplementary tables
