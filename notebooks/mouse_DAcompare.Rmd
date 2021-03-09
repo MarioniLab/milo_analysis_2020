@@ -1,0 +1,122 @@
+---
+title: "Mouse thymus: Validating differential abundance findings"
+output: html_notebook
+---
+
+# Introduction
+
+In Baran-Gale _et al._, we validated our finding that accumulating progenitors is coincident with a restriction in mTEC differentiation. These results with Milo 
+suggest that the mTEC-biased progenitors are where the defect manifests. To validate this we can look at the similarity to cells from our larger droplet 
+scRNAseq experiment, and how the abundance of these cells changes across ages.
+
+I will pull in the 10X data from our public-facing FTP server, which I've then organised into a `SingleCellExperiment` object for convenience, and compute the 
+distance from the cells in the DA nhoods to the cells in the larger data set. Then compute the abundance of these cells in each replicated sample and plot how 
+they change across ages.
+
+```{r, message=FALSE}
+library(batchelor)
+library(SingleCellExperiment)
+library(miloR)
+library(cowplot)
+library(ggplot2)
+library(igraph)
+library(ggthemes)
+library(biomaRt)
+library(ggsci)
+library(irlba)
+library(umap)
+library(viridis)
+library(ComplexHeatmap)
+library(ggbeeswarm)
+library(colorspace)
+library(patchwork)
+library(enrichR)
+library(scater)
+library(reshape2)
+library(BiocNeighbors)
+```
+
+```{r, defining-nhood-groups, warning=FALSE, message=FALSE}
+thymus.groups <- read.table("/nfs/research1/marioni/mdmorgan/milo_testing/results/Thymus_NhoodGroups.txt",
+	                    sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(thymus.groups) <- thymus.groups$CellID
+head(thymus.groups)
+```
+
+I have already batch-corrected the SMART-seq and 10X droplet data together. All that remains is to find the set of 
+mutual nearest neighbours to the DA nhood cells, and compute their proportions across ages.
+
+
+```{r, load-big-SCE, warning=FALSE, message=FALSE}
+big.sce <- readRDS("/nfs/research1/marioni/mdmorgan/milo_testing/data/CombinedThymus_SCE.RDS")
+```
+
+### Computing distances
+
+First I will find the K-mutual nearest neighbours for each cell in the different nhood groups. Then as a group, I will compute their abundance within each experimental sample.
+
+```{r, Finding-MNNs, warning=FALSE, message=FALSE}
+nhood.group.mnn <- findMutualNN(data1=reducedDim(big.sce[,big.sce$Batch %in% c("SMART")], "MNN"),
+		                data2=reducedDim(big.sce[,big.sce$Batch %in% c("droplet")], "MNN"),
+				k1=20, k2=60)
+```
+
+After computing the MNNs between the 2 data sets, we will subset the MNNs of the DA nhood cells.
+
+```{r, Extracting-NhoodGroup-MNNs, warning=FALSE, message=FALSE}
+nhood.groups <- unique(thymus.groups$Nhood.Group)
+
+nhood.mnn.list <- list()
+for(x in seq_along(nhood.groups)){
+  x.group <- nhood.groups[x]
+  x.cells <- rownames(thymus.groups[thymus.groups$Nhood.Group %in% x.group, ])
+  x.idx <- which(colnames(big.sce[, big.sce$Batch %in% c("SMART")]) %in% x.cells)
+  if(length(x.idx) > 0){
+    x.mnn.idx <- which(nhood.group.mnn$first %in% x.idx)
+    x.mnn.first <- nhood.group.mnn$first[x.mnn.idx]
+    x.mnn.second <- nhood.group.mnn$second[x.mnn.idx]
+    x.mnn.cells <- colnames(big.sce[, big.sce$Batch %in% c("droplet")])[x.mnn.second]
+    nhood.mnn.list[[paste0(x.group)]] <- x.mnn.cells
+  } else{
+    nhood.mnn.list[[paste0(x.group)]] <- c()
+  }
+}
+```
+
+Having now extracted all of the MNNs, we can tally these up to the relevant meta-data and compute their proportions w.r.t. age.
+
+```{r, load-droplets, warning=FALSE, message=FALSE}
+droplet.sce <- readRDS("/nfs/research1/marioni/mdmorgan/milo_testing/data/ThymusDroplet_SCE.RDS")
+```
+
+```{r, Computing-MNN-proportions, warning=TRUE, message=TRUE}
+samp.nums <- table(colData(droplet.sce)$SampID)
+mnn.props.list <- list()
+for(x in seq_along(nhood.groups)){
+  x.group <- nhood.groups[x]
+  print(x.group)
+  x.cells <- nhood.mnn.list[[paste0(x.group)]]      
+  print(length(x.cells))
+  x.nums <- table(colData(droplet.sce)[x.cells, ]$SampID, colData(droplet.sce)[x.cells, ]$Age)
+  
+  if(nrow(x.nums) > 0){
+    print(x.nums)
+    print(dim(x.nums))
+    #x.props <- as.data.frame(apply(x.nums, 1, FUN=function(X) X/samp.nums))
+    #print(head(x.props))
+    #x.props$SampID <- colnames(x.nums)
+    #x.melt <- melt(x.props, id.vars='SampID')
+    #print(head(x.props))
+    #if(nrow(x.props) > 0){
+    #  x.props$Nhood.Group <- x.group
+    # mnn.props.list[[paste0(x.group)]] <- x.props
+    #}
+  }
+}
+
+mnn.prop.df <- do.call(rbind.data.frame, mnn.props.list)
+write.table(mnn.prop.df, file="/nfs/research1/marioni/mdmorgan/milo_testing/results/Thymus-MNN_props.txt", sep="\t", quote=FALSE, row.names=FALSE)
+
+head(mnn.prop.df)
+```
+
