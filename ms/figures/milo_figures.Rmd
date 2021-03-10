@@ -5,6 +5,7 @@ output:
     toc: false
 link-citations: true
 fontsize: 10pt
+geometry: margin=1cm
 ---
 
 ```{r, include=FALSE}
@@ -66,7 +67,7 @@ knitr::include_graphics("figs/figure4.pdf", auto_pdf = TRUE)
 (E) A heatmap of genes differentially expressed between DA neighbourhoods in the Intertypical TEC cluster. Each column is a neighbourhood and rows are differentially expressed genes (FDR 1%). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.
 
 
-```{r fig-5, fig.cap="(ref:fig5)"}
+```{r fig-5, fig.cap="(ref:fig5)", out.width = "500px"}
 knitr::include_graphics("figs/figure5_letters_2.pdf", auto_pdf = TRUE)
 ```
 

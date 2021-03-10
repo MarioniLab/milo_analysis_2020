@@ -39,7 +39,7 @@
   hidelinks,
   pdfcreator={LaTeX via pandoc}}
 \urlstyle{same} % disable monospaced font for URLs
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=1cm]{geometry}
 \usepackage{longtable,booktabs}
 % Correct order of tables after \paragraph or \subparagraph
 \usepackage{etoolbox}
@@ -66,6 +66,9 @@
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \setcounter{secnumdepth}{5}
+\ifluatex
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
 
 \author{}
 \date{\vspace{-2.5em}}
@@ -77,14 +80,12 @@
 
 \newpage
 
-\begin{figure}
-\centering
-\includegraphics{suppl_figs/suppl_fig3.pdf}
-\caption{\label{fig:sup-fig-3}\textbf{Random sampling of k-NN graph vertices is suboptimal compared to sampling with refinement.}
+\begin{figure}[ht]
+\includegraphics[width=500px]{suppl_figs/suppl_fig_refined} \caption{\textbf{Random sampling of k-NN graph vertices is suboptimal compared to sampling with refinement.}
 (A) Sampling with refinement leads to selection of fewer neighbourhoods
 (B) Sampling with refinement leads to selection of bigger neighbourhoods for DA testing, independently of the initial proportion of cells sampled
 (C) Sampling with refinement generates robust neighbourhoods across initializations: for each index cell we calculate the distance from the closest index in a sampling with different initialization. The cumulative distribution of distances to the closest index is shown. The black dotted line denotes the distribution of distances between k nearest neighbors in the dataset (k=30) (NH: neighbourhood).
-Neighbourhood statistics were calculated using a simulated trajectory dataset of 5000 cells. All plots show results from three sampling initializations for each proportion.}
+Neighbourhood statistics were calculated using a simulated trajectory dataset of 5000 cells. All plots show results from three sampling initializations for each proportion.}\label{fig:sup-fig-refined}
 \end{figure}
 
 
@@ -95,34 +96,8 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 \begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig1_letters.pdf}
-\caption{\label{fig:sup-fig-1}\textbf{Tolerance of Milo to uncorrected batch effects in simulated data}
-(A-B) UMAP embeddings of simulated scRNA-seq data containing a batch effect, before batch correction (top row) and after correction with fastMNN (bottom row) (5000 cells). Cells are colored by simulated batch (A) and by presence of differential abundance between 2 simulated conditions (20\% cells in condition `A', 80\% cells in condition `B') (B).
-(C) A graph representation of the results from Milo differential abundance testing. Neighbourhoods were tested for DA between conditions, with (\textasciitilde{} batch + condition) or without (\textasciitilde{} condition) accounting for the simulated batch. Nodes are neighbourhoods, coloured by their log fold change between conditions. Non-DA neighbourhoods (FDR 10\%). Node sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods.
-(D) Confusion matrices comparing the number of true and predicted DA neighbourhoods, with different batch effect correction (rows) and different testing design (columns).}
-\end{figure}
-
-
-
-
-
-
-\begin{figure}
-\centering
-\includegraphics{suppl_figs/suppl_fig2_letters.pdf}
-\caption{\label{fig:sup-fig-2}\textbf{Tolerance of Milo to uncorrected batch effects in mouse gastrulation atlas}
-(A-B) UMAP embedding of mouse gastrulation atlas before batch correction (top row) and after correction with fastMNN (bottom row). Cells are colored by sequencing batch (A) and developmental time point (B).
-(C) Barplot depicting the percentage of DA neighbourhoods at FDR 10\%, testing for different experimental covariates: DA between sequencing batches (\textasciitilde{} Seq. batch), DA across developmental time points (\textasciitilde{} Time points), DA across developmental time points accounting for the sequencing batch (\textasciitilde{} Seq. batch + time points). The total number of DA neighbourhoods is shown in each bar.}
-\end{figure}
-
-
-
-
-
-\begin{figure}
-\centering
-\includegraphics{suppl_figs/suppl_fig4.pdf}
-\caption{\label{fig:sup-fig-4}\textbf{Graph-clustering does not faithfully capture simulated groups and differentially abundant subpopulations in a simulated continuous trajectory.}
+\includegraphics{suppl_figs/suppl_fig_clustering.pdf}
+\caption{\label{fig:sup-fig-clustering}\textbf{Graph-clustering does not faithfully capture simulated groups and differentially abundant subpopulations in a simulated continuous trajectory.}
 (A) A simulated linear trajectory of 2000 single-cells generated from 5 different groups, with cells assigned to either condition `A' (left) or condition `B' (right).
 (B) A Walktrap clustering of the data in (A) using the same k-NN graph. Cells are coloured by Walktrap cluster identity.
 (C) A Louvain clustering of the data in (A) using the same k-NN graph. Cells are coloured by the Louvain clustering identity.
@@ -137,9 +112,43 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 \begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig5.pdf}
-\caption{\label{fig:sup-fig-5}\textbf{Comparison of Milo to alternative differential abundance methods}
-Each panel shows a measure of method performance computed across 100 independent simulations. Boxplots denote the median and interquartile range (IQR), with whiskers extending 1.5 x IQR; outliers are shown as individual points. Each analysis on each independent simulation used the same parameter values in Supplementary Table 1.}
+\includegraphics{suppl_figs/suppl_fig_Kselection.pdf}
+\caption{\label{fig:sup-fig-Kselection}\textbf{Selection of \(K\) parameter}
+(A) Illustrative examples of TPR-FDR tradeoff for increasing values of k used for k-NN graph building on simulated DA on 4 regions. Dotted lines highlight TPR=0.8 and FDR=0.1 thresholds.
+(B) The median number of cells per experimental sample is a function of the neighbourhood size snsdivided by the total number of samples (S). (C) Histogram of neighbourhood sizes for different choices of k. The red dotted line denotes the minimum neighbourhood size to obtain 5 cells per sample on average.}
+\end{figure}
+
+
+
+
+
+
+
+\begin{figure}
+\centering
+\includegraphics{suppl_figs/suppl_fig_bm_threshold.pdf}
+\caption{\label{fig:sup-fig-bm-threshold}\textbf{Selection of probability threshold for DA benchmarking.} Mean True Positive Rate (left) and False Discovery Rate (right) for recovery of cells in simulated DA regions as a function of probability threshold \(t\) picked to define true DA. The dashed line indicates \(t = 0.6\), that was selected for benchmarking analyses. The mean is calculated over 81 simulations on 9 populations. Line shading indicates the standard deviation of the mean.}
+\end{figure}
+
+
+
+\begin{figure}[ht]
+\includegraphics[width=500px]{suppl_figs/suppl_fig_bm_simulations} \caption{\textbf{Benchmarking DA methods on simulated data.} DA analysis performance on KNN graphs from simulated datasets of different topologies: (A) discrete clusters (900 cells, 3 populations); (B) 1-D linear trajectory (2500 cells, 7 populations); (C) Branching trajectory (2500 cells, 10 populations).}\label{fig:sup-fig-bm-simulations}
+\end{figure}
+
+
+
+\begin{figure}
+\centering
+\includegraphics{suppl_figs/suppl_fig_bm_batcheffects.pdf}
+\caption{\label{fig:sup-fig-bm-batcheffects}\textbf{Tolerance of DA analysis to batch effects.} (A) Comparison of performance of DA methods with no batch effect, with batch effects of increasing magnitude corrected with MNN, and uncorrected batch effects. (B) Comparison of Milo performance with (\textasciitilde{} batch + condition) or without (\textasciitilde{} condition) accounting for the simulated batch in the GLM. Points denote the Mean True Positive Rate (left) and False Discovery Rate (right) for recovery of cells in simulated DA regions with simulated batch effects of increasing magnitude. The mean is calculated over 27 simulations on 9 populations. Line shading indicates the standard deviation of the mean. Each panel represents a different DA effect size.}
+\end{figure}
+
+
+
+\begin{figure}[ht]
+\includegraphics[width=500px]{suppl_figs/suppl_fig_scalability} \caption{\textbf{Memory usage across the Milo analysis workflow}
+otal memory usage across the steps of the Milo analysis workflow in 4 datasets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey pointed denote down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) k-NN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all datasets for graph building and neighbourhood construction (k=30).}\label{fig:sup-fig-scalability}
 \end{figure}
 
 
@@ -147,9 +156,9 @@ Each panel shows a measure of method performance computed across 100 independent
 
 \begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig7.pdf}
-\caption{\label{fig:sup-fig-7}\textbf{Memory usage across the Milo analysis workflow}
-Total memory usage across the steps of the Milo analysis workflow in 4 data sets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denoted down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) k-NN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all data-sets for graph building and neighbourhood construction (k=30).}
+\includegraphics{suppl_figs/suppl_fig_liver_endo.pdf}
+\caption{\label{fig:sup-fig-liver-endo}\textbf{Downstream analysis of disease-specific endothelial subpopulations in liver cirrhosis}
+(A) GO term enrichment analysis on marker genes of cirrhosis-enriched endothelia. (B) GO term enrichment analysis on marker genes of healthy-enriched endothelia. The top 20 significant terms are shown.}
 \end{figure}
 
 
@@ -157,13 +166,12 @@ Total memory usage across the steps of the Milo analysis workflow in 4 data sets
 
 \begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig6.pdf}
-\caption{\label{fig:sup-fig-6}\textbf{Downstream analysis of disease-specific subpopulations in liver cirrhosis}
-(A) GO term enrichment analysis on marker genes of cirrhosis-enriched endothelia. The top 20 significant terms are shown.
-(B) GO term enrichment analysis on marker genes of healthy-enriched endothelia. The top 20 significant terms are shown.
-(C-D) UMAP embedding (C) and graph representation (D) of neighbourhoods of 3369 cells from cholangiocytes lineage.
-(E) Volcano plot for DGE test on cholangiocytes DA subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
-(F) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.}
+\includegraphics{suppl_figs/suppl_fig_liver_chol.pdf}
+\caption{\label{fig:sup-fig-liver-chol}\textbf{Downstream analysis of disease-specific cholangiocyte subpopulations in liver cirrhosis}
+Downstream analysis of disease-specific cholangiocyte subpopulations in liver cirrhosis
+(A-B) UMAP embedding (A) and graph representation (B) of neighbourhoods of 3369 cells from cholangiocyte lineage.
+(C) Volcano plot for DGE test on cholangiocytes DA subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
+(D) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.}
 \end{figure}
 
 
@@ -171,31 +179,5 @@ Total memory usage across the steps of the Milo analysis workflow in 4 data sets
 
 
 
-
-
-\newpage
-
-\hypertarget{supplementary-tables}{%
-\section{Supplementary tables}\label{supplementary-tables}}
-
-\begin{longtable}[]{@{}llll@{}}
-\toprule
-Method & Key Parameters & Values & Hypothesis testing\tabularnewline
-\midrule
-\endhead
-Milo & K & 10 & Negative binomial GLM, 10\% FDR\tabularnewline
-& d & 15 & Negative binomial GLM, 10\% FDR\tabularnewline
-Cydar & r & 2 & Negative binomial GLM, 10\% FDR\tabularnewline
-DAseq & k.vector & 5-500, steps of 50 & Logistic classifier prediction, top 10\%\tabularnewline
-Louvain + edgeR & K & 10 & Negative binomial GLM, 10\% FDR\tabularnewline
-& d & 15 &\tabularnewline
-Walktrap + edgeR & K & 10 & Negative binomial GLM, 10\% FDR\tabularnewline
-& d & 15 &\tabularnewline
-\bottomrule
-\end{longtable}
-
-Supplementary Table 1: \textbf{Method comparison parameter values.}
-
-\newpage
 
 \end{document}
