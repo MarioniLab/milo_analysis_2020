@@ -17,6 +17,7 @@ library(ggrastr)
 library(ggsci)
 library(RColorBrewer)
 library(scales)
+library(viridis)
 ```
 
 What does the integrated UMAP look like?
@@ -26,28 +27,23 @@ umap.df <- read.table("~/Dropbox/Milo/simulations/Combined_UMAP_meta.tsv",
                       sep="\t", header=TRUE, stringsAsFactors=FALSE)
 ```
 
-```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=7.15}
+```{r, warning=FALSE, message=FALSE, fig.height=2.55, fig.width=6.15}
+umap.df$Dataset <- factor(umap.df$Batch,
+                          levels=c("SMART", "droplet"),
+                          labels=c("SMARTseq", "Droplet"))
+
 ggplot(umap.df, aes(x=UMAP1, y=UMAP2)) +
   geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
                   colour='grey80', size=0.1) +
-  geom_point_rast(aes(colour=Batch), size=0.5) +
+  geom_point_rast(aes(colour=Dataset), size=0.1) +
   theme_cowplot() +
   scale_colour_aaas() +
-  facet_wrap(~Batch) +
+  facet_wrap(~Dataset) +
   guides(colour=guide_legend(override.aes=list(size=3))) +
-  NULL
-```
-
-
-```{r, warning=FALSE, message=FALSE, fig.height=9.95, fig.width=9.15}
-ggplot(umap.df, aes(x=UMAP1, y=UMAP2)) +
-  geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
-                  colour='grey80', size=0.1) +
-  geom_point_rast(aes(colour=Batch), size=0.5) +
-  theme_cowplot() +
-  scale_colour_aaas() +
-  facet_wrap(~Cluster) +
-  guides(colour=guide_legend(override.aes=list(size=3))) +
+  theme(strip.background=element_rect(colour='white', fill='white'),
+        strip.text=element_blank()) +
+  ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_MNN-UMAP.pdf",
+         height=2.55, width=6.15, useDingbats=FALSE) +
   NULL
 ```
 
@@ -58,7 +54,181 @@ thymus.groups <- read.table("~/Dropbox/Milo/simulations/Thymus_NhoodGroups.txt",
 table(thymus.groups$Nhood.Group)
 ```
 
+For the MNN label transfer, we only need to visualise the nhood groups for the Intertypical TEC MNNs (groups 3,4 & 5).
 
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=1.95}
+nhood.groups <- unique(thymus.groups$Nhood.Group)
+group.cols <- colorRampPalette(brewer.pal(11, "Spectral"))(length(nhood.groups))
+names(group.cols) <- paste0("Nhood Group ", c(1:9))
+
+umap.df$Nhood.Group <- NA
+for(i in seq_along(nhood.groups)){
+  i.cells <- thymus.groups$CellID[thymus.groups$Nhood.Group %in% nhood.groups[i]]
+  umap.df$Nhood.Group[umap.df$CellID %in% i.cells] <- nhood.groups[i]
+}
+
+umap.df$Nhood.Group <- factor(umap.df$Nhood.Group,
+                              levels=c(1:9),
+                              labels=paste0("Nhood Group ", c(1:9)))
+
+ggplot(umap.df[umap.df$Nhood.Group %in% paste0("Nhood Group ", c(3:5)), ],
+       aes(x=UMAP1, y=UMAP2)) +
+  geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
+                  colour='grey80', size=0.1) +
+  geom_point_rast(data=umap.df[umap.df$Nhood.Group %in% paste0("Nhood Group ", c(3:5)), ],
+                  aes(colour=Nhood.Group), size=0.5) +
+  theme_cowplot() +
+  scale_colour_manual(values=group.cols) +
+  facet_wrap(~Nhood.Group, ncol=1) +
+  theme(strip.background=element_rect(colour='white', fill='white'),
+        strip.text=element_text(size=8, face='bold'),
+        axis.title=element_text(size=8),
+        axis.text=element_text(size=8)) +
+  guides(colour=FALSE) +
+  ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_NhoodGroup_MNNUMAP-select.pdf",
+         height=4.15, width=1.95, useDingbats=FALSE) +
+  NULL
+```
+
+We also generate the whole plot for all nhoods for transparency.
+
+```{r, warning=FALSE, message=FALSE, fig.height=5.15, fig.width=5.95}
+ggplot(umap.df[!is.na(umap.df$Nhood.Group), ],
+       aes(x=UMAP1, y=UMAP2)) +
+  geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
+                  colour='grey80', size=0.1) +
+  geom_point_rast(data=umap.df[!is.na(umap.df$Nhood.Group), ],
+                  aes(colour=Nhood.Group), size=0.5) +
+  theme_cowplot() +
+  scale_colour_manual(values=group.cols) +
+  facet_wrap(~Nhood.Group) +
+  theme(strip.background=element_rect(colour='white', fill='white'),
+        strip.text=element_text(size=8, face='bold'),
+        axis.title=element_text(size=8),
+        axis.text=element_text(size=8)) +
+  guides(colour=FALSE) +
+  ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_NhoodGroup_MNNUMAP.pdf",
+         height=5.15, width=5.95, useDingbats=FALSE) +
+  NULL
+```
+
+
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=1.95, fig.width=1.95}
+set.seed(42)
+random.cell <- sample(umap.df$CellID[umap.df$Nhood.Group %in% c("Nhood Group 3")], size=1)
+umap.df$Rand.Cell <- NA
+umap.df$Rand.Cell[umap.df$CellID %in% random.cell] <- "Select"
+
+ggplot(umap.df[!is.na(umap.df$Nhood.Group), ], aes(x=UMAP1, y=UMAP2)) +
+  geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
+                  colour='grey80', size=0.1) +
+  geom_point_rast(data=umap.df[umap.df$Nhood.Group %in% c("Nhood Group 3"), ],
+                  aes(colour=Rand.Cell), size=0.5) +
+  theme_cowplot() +
+  scale_colour_manual(values=c("#3B4992FF")) +
+  theme(strip.background=element_rect(colour='white', fill='white'),
+        strip.text=element_text(size=8, face='bold'),
+        axis.title=element_text(size=8),
+        axis.text=element_text(size=8)) +
+  guides(colour=FALSE) +
+  ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_MNNUMAP-randCell.pdf",
+         height=1.95, width=1.95, useDingbats=FALSE) +
+  NULL
+```
+
+Now we find the MNNs for this cell, and plot those on the UMAP.
+
+```{r, warning=FALSE, message=FALSE}
+mnn.pair.list <- readRDS("~/Dropbox/Milo/simulations/MNNList.RDS")
+```
+
+```{r, warning=FALSE, message=FALSE, fig.height=1.95, fig.width=1.95}
+set.seed(42)
+rand.cell.nhood <- gsub(as.character(umap.df$Nhood.Group[umap.df$Rand.Cell %in% c("Select")]),
+                        pattern="Nhood Group ", replacement="")
+rand.mnn <- mnn.pair.list[[rand.cell.nhood]]
+rand.mnn.cells <- rand.mnn$CellID.Second[rand.mnn$CellID.First %in% random.cell]
+
+umap.df$Rand.MNN <- NA
+umap.df$Rand.MNN[umap.df$CellID %in% rand.mnn.cells] <- "MNN"
+
+ggplot(umap.df[!is.na(umap.df$Nhood.Group), ], aes(x=UMAP1, y=UMAP2)) +
+  geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
+                  colour='grey80', size=0.1) +
+  geom_point_rast(data=umap.df,
+                  aes(colour=Rand.MNN), size=0.5) +
+  theme_cowplot() +
+  scale_colour_manual(values=c("#EE0000FF")) +
+  theme(strip.background=element_rect(colour='white', fill='white'),
+        strip.text=element_text(size=8, face='bold'),
+        axis.title=element_text(size=8),
+        axis.text=element_text(size=8)) +
+  guides(colour=FALSE) +
+  ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_MNNUMAP-randMNNs.pdf",
+         height=1.95, width=1.95, useDingbats=FALSE) +
+  NULL
+```
+
+```{r, warning=FALSE, message=FALSE, fig.height=1.95, fig.width=1.95}
+mnn.list <- readRDS("~/Dropbox/Milo/simulations/nhood_mnn_list.RDS")
+
+umap.df$MNN.NhoodGroup <- NA
+for(i in seq_along(nhood.groups)){
+  i.cells <- mnn.list[[paste0(nhood.groups[i])]]
+  umap.df$MNN.NhoodGroup[umap.df$CellID %in% i.cells] <- nhood.groups[i]
+}
+
+umap.df$MNN.NhoodGroup <- factor(umap.df$MNN.NhoodGroup,
+                                 levels=c(1:9),
+                                 labels=paste0("Nhood Group ", c(1:9)))
+
+ggplot(umap.df[!is.na(umap.df$MNN.NhoodGroup), ],
+       aes(x=UMAP1, y=UMAP2)) +
+  geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
+                  colour='grey80', size=0.1) +
+  geom_point_rast(data=umap.df[!is.na(umap.df$Rand.MNN) & umap.df$MNN.NhoodGroup %in% c("Nhood Group 3"), ],
+                  aes(colour=MNN.NhoodGroup), size=0.5) +
+  theme_cowplot() +
+  scale_colour_manual(values=group.cols) +
+  theme(strip.background=element_rect(colour='white', fill='white'),
+        strip.text=element_text(size=8, face='bold'),
+        axis.title=element_text(size=8),
+        axis.text=element_text(size=8)) +
+  guides(colour=FALSE) +
+  ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_MNNUMAP-randMNN-NhoodGroup.pdf",
+         height=1.95, width=1.95, useDingbats=FALSE) +
+  NULL
+```
+
+
+
+
+Now we do a label transfer of the neighbourhood groups from the SMART-seq data onto the droplet data.
+
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.15}
+
+
+ggplot(umap.df[!is.na(umap.df$MNN.NhoodGroup), ], aes(x=UMAP1, y=UMAP2)) +
+  geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
+                  colour='grey80', size=0.1) +
+  geom_point_rast(data=umap.df[!is.na(umap.df$MNN.NhoodGroup), ],
+                  aes(colour=MNN.NhoodGroup), size=0.5) +
+  theme_cowplot() +
+  scale_colour_manual(values=group.cols) +
+  facet_wrap(~MNN.NhoodGroup) +
+  theme(strip.background=element_rect(colour='white', fill='white'),
+        strip.text=element_text(size=8, face='bold'),
+        axis.title=element_text(size=8),
+        axis.text=element_text(size=8)) +
+  guides(colour=FALSE) +
+  ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_NhoodGroupDroplet_MNNUMAP.pdf",
+         height=3.95, width=4.15, useDingbats=FALSE) +
+  NULL
+```
+
+I have pre-computed the proportions of these MNNs over samples and ages.
 
 ```{r, warning=FALSE, message=FALSE}
 mnn.props <- read.table("~/Dropbox/Milo/simulations/Thymus-MNN_props.txt",
@@ -75,31 +245,58 @@ mnn.props$NhoodGroup <- ordered(mnn.props$NhoodGroup,
 From our previous analyses, we have seen that the mTEC-biased Intertypical TEC correspond to Nhood group 5. The others correspond to the enriched 
 Intertypical TEC and the mature mTEC and proliferating TEC.
 
-```{r, warning=FALSE, message=FALSE, fig.width=4.95, fig.height=2.15}
-
+```{r, warning=FALSE, message=FALSE, fig.width=5.25, fig.height=4.25}
 age.cols <- viridis(option="magma", n=5)
 names(age.cols) <- c("Wk1", "Wk4", "Wk16", "32wk", "52wk")
 
-ggplot(mnn.props[mnn.props$NhoodGroup %in% c("Nhood Group 3", "Nhood Group 5"), ], 
-       aes(x=Age, y=Freq*100)) +
+ggplot(mnn.props[mnn.props$NhoodGroup %in% paste0("Nhood Group ", c(1:9)), ],
+       aes(x=Age, y=Freq)) +
   geom_boxplot(aes(fill=Age), alpha=0.5) +
-  geom_jitter(aes(colour=Age), position=position_jitter(width=0.25)) +
+  geom_jitter(aes(colour=Age), position=position_jitter(width=0.1)) +
   theme_cowplot() +
-  facet_wrap(~NhoodGroup, scales="free", ncol=2) +
+  facet_wrap(~NhoodGroup, scales="free", ncol=3) +
   expand_limits(y=c(0)) +
   # coord_flip() +
   scale_fill_manual(values=age.cols, breaks=c("Wk1", "Wk4", "Wk16")) +
   scale_colour_manual(values=age.cols, breaks=c("Wk1", "Wk4", "Wk16")) +
-  theme(aspect=1,
+  theme(#aspect=1,
         axis.text.x=element_blank(),
         axis.ticks.x=element_blank(),
+        axis.text.y=element_text(size=9),
+        axis.title.y=element_text(size=9),
+        strip.text=element_text(size=9, face='bold'),
         strip.background=element_rect(fill='white', colour='white')) +
-  labs(y="%TEC", x="") +
+  labs(y="Proportion", x="") +
   ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_dropletMNN-boxplots.pdf",
-         height=2.15, width=4.95, useDingbats=FALSE) +
+         height=4.25, width=5.25, useDingbats=FALSE) +
   NULL
 ```
 
 
 
+```{r, warning=FALSE, message=FALSE, fig.width=1.75, fig.height=4.15}
+ggplot(mnn.props[mnn.props$NhoodGroup %in% paste0("Nhood Group ", c(3:5)), ],
+       aes(x=Age, y=Freq)) +
+  geom_boxplot(aes(fill=Age), alpha=0.5) +
+  geom_jitter(aes(colour=Age), position=position_jitter(width=0.1)) +
+  theme_cowplot() +
+  facet_wrap(~NhoodGroup, scales="free", ncol=1) +
+  expand_limits(y=c(0)) +
+  # coord_flip() +
+  scale_fill_manual(values=age.cols, breaks=c("Wk1", "Wk4", "Wk16")) +
+  scale_colour_manual(values=age.cols, breaks=c("Wk1", "Wk4", "Wk16")) +
+  theme(#aspect=1,
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_text(size=9),
+        axis.title.y=element_text(size=10, face='bold'),
+        strip.text=element_text(size=9, face='bold'),
+        strip.background=element_rect(fill='white', colour='white')) +
+  labs(y="Proportion", x="") +
+  guides(fill=FALSE,
+         colour=FALSE) +
+  ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_dropletMNN-boxplots_select.pdf",
+         height=4.15, width=1.75, useDingbats=FALSE) +
+  NULL
+```
 

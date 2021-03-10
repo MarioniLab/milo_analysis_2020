@@ -31,8 +31,6 @@ library(colorspace)
 library(patchwork)
 library(enrichR)
 library(scater)
-library(reshape2)
-library(BiocNeighbors)
 ```
 
 We're loading in the data from an accompanying package that contains a few publicly available data sets. In this instance we've 
@@ -151,7 +149,7 @@ ggplot(fr.df,
     guides(fill=guide_legend(title="TEC type", title.position="top")) +
     NULL
 
-ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_FR_singleCells.png",
+ggsave("~/Dropbox/Milo/figures/MouseThymus_FR_singleCells.png",
        height=4.95, width=6.15, dpi=300)
 ```
 
@@ -224,17 +222,17 @@ by.age
 # this generates plots that have aligned dimensions
 aligned.plots <- align_patches(by.type, by.age)
 
-ggsave(aligned.plots[[1]], filename="~/Dropbox/Milo/revision/figures/MouseThymus_UMAP_singleCells.png",
+ggsave(aligned.plots[[1]], filename="~/Dropbox/Milo/figures/MouseThymus_UMAP_singleCells.png",
        height=2.95, width=6.15, dpi=300)
 
-ggsave(aligned.plots[[1]], filename="~/Dropbox/Milo/revision/figures/MouseThymus_UMAP_singleCells.pdf",
+ggsave(aligned.plots[[1]], filename="~/Dropbox/Milo/figures/MouseThymus_UMAP_singleCells.pdf",
        height=2.95, width=6.15, useDingbats=FALSE)
 
 
-ggsave(aligned.plots[[2]], filename="~/Dropbox/Milo/revision/figures/MouseThymus_UMAP_singleCells-Age.png",
+ggsave(aligned.plots[[2]], filename="~/Dropbox/Milo/figures/MouseThymus_UMAP_singleCells-Age.png",
        height=2.95, width=6.15, dpi=300)
 
-ggsave(aligned.plots[[2]], filename="~/Dropbox/Milo/revision/figures/MouseThymus_UMAP_singleCells-Age.pdf",
+ggsave(aligned.plots[[2]], filename="~/Dropbox/Milo/figures/MouseThymus_UMAP_singleCells-Age.pdf",
        height=2.95, width=6.15, useDingbats=FALSE)
 ```
 
@@ -315,21 +313,9 @@ ggplot(thymus.res, aes(x=logFC, y=-log10(SpatialFDR), colour=as.character(Diff))
     guides(colour=FALSE) +
     labs(x="log Fold Change", y=expression(paste("-log"[10], " Spatial FDR")))
 
-ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_volcano.pdf",
+ggsave("~/Dropbox/Milo/figures/MouseThymus_volcano.pdf",
        height=2.95, width=5.15, useDingbats=FALSE)
 ```
-
-We want to make sure that there is no indication of any global shifts due to confounding between the numbers of cells collected and each age. We can 
-do this by visualising the DA testing results with an MA plot.
-
-```{r, warning=FALSE, message=FALSE, fig.height=2.55, fig.width=5.95}
-plotNhoodMA(thymus.res, alpha=0.1) +
-  ggsave("~/Dropbox/Milo/revision/figures/Thymus_MAplot.png",
-         height=2.55, width=5.95, dpi=300)
-```
-
-The two horizontal lines represent the expect log fold change under the null hypothesis (grey line) and the observed median log-fold change 
-(purple line). Ideally we want these two lines to be pretty close together, which they are here.
 
 Another way to visualise this is to overlay these DA results on an abstracted graph or other reduced dimensional visualisation like a UMAP, that is 
 anchored to the one we used for our single-cells above. There are a series of plotting functions baked into the `miloR` package that assist with this.
@@ -342,10 +328,10 @@ reducedDim(thymus.mylo, "FR") <- fr.df[, c("V1", "V2")]
 thymus.mylo <- buildNhoodGraph(thymus.mylo, overlap=5)
 plotNhoodGraphDA(thymus.mylo, layout="UMAP", milo_res=thymus.res, alpha=0.1)
 
-ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_UMAP_nhoods-logFC.png",
+ggsave("~/Dropbox/Milo/figures/MouseThymus_UMAP_nhoods-logFC.png",
        height=6.95, width=7.55, dpi=300)
 
-ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_UMAP_nhoods-logFC.pdf",
+ggsave("~/Dropbox/Milo/figures/MouseThymus_UMAP_nhoods-logFC.pdf",
        height=6.95, width=7.55, useDingbats=FALSE)
 ```
 
@@ -365,10 +351,10 @@ plotNhoodGraph(thymus.mylo, layout="UMAP", colour_by="Cluster") +
     scale_fill_manual(values=inter.cols) +
     guides(fill=guide_legend(title="TEC type", override.aes=list(size=4)))
 
-ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_UMAP_nhoods-cluster.png",
+ggsave("~/Dropbox/Milo/figures/MouseThymus_UMAP_nhoods-cluster.png",
        height=5.95, width=6.95, dpi=300)
 
-ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_UMAP_nhoods-cluster.pdf",
+ggsave("~/Dropbox/Milo/figures/MouseThymus_UMAP_nhoods-cluster.pdf",
        height=5.95, width=6.95, useDingbats=FALSE)
 ```
 
@@ -388,7 +374,7 @@ thymus.res <- annotateNhoods(thymus.mylo, thymus.res, "Cluster")
 ```
 
 
-```{r, warning=FALSE, message=FALSE, fig.height=6.15, fig.width=6.55}
+```{r, warning=FALSE, message=FALSE, fig.height=5.95, fig.width=4.15}
 cluster.levels <- unique(thymus.res$Cluster)
 thymus.res$Cluster <- factor(thymus.res$Cluster,
                              levels=cluster.levels)
@@ -420,10 +406,10 @@ thymus.bee <- ggplot(mapping=aes(x=Cluster, y=logFC)) +
     scale_y_continuous(limits=c(-lim.val-eps, lim.val+eps)) +
     theme_bw() +
     labs(y="Log Fold Change") +
-    theme(strip.text.y =  element_text(angle=0, colour='black', size=16),
+    theme(strip.text.y =  element_text(angle=0, colour='black', size=12),
           strip.background=element_rect(colour='white', fill='white'),
           axis.title.y = element_blank(), axis.text.y = element_blank(), 
-          axis.text.x=element_text(size=16), axis.title.x=element_text(size=16),
+          axis.text.x=element_text(size=12), axis.title.x=element_text(size=12),
           axis.ticks.y = element_blank()) +
     guides(colour=FALSE)
 
@@ -442,16 +428,15 @@ thymus.arrow <- ggplot(orig.da, aes(x=Cluster, y=start, xend=Cluster, yend=end, 
         plot.margin = unit(c(0,0,0,0), "cm"), panel.grid = element_blank(),
         axis.title.x = element_blank(), axis.text.x = element_blank(), 
         axis.ticks.x = element_blank(), axis.text.y=element_blank(),
-        axis.title.y=element_text(size=16), 
-        legend.text=element_text(size=14), legend.title=element_text(size=14),
+        axis.title.y=element_text(size=12), 
+        legend.text=element_text(size=12), legend.title=element_text(size=12),
         legend.position = "bottom")
 
 (thymus.arrow + thymus.bee +
         plot_layout(widths=c(1, 8), guides="collect") & theme(legend.position="top", legend.justification=0)) +
     ggsave("~/Dropbox/Milo/revision/figures/Thymus_ResByCluster.pdf",
-       height=6.15, width=4.95, useDingbats=FALSE)
+       height=5.95, width=4.15, useDingbats=FALSE)
 ```
-
 
 To do this we need to pass in our `Milo` object and the results of our DA testing, plus any cell-wise or gene-wise subsetting we might wish to do. The 
 `findNhoodMarkers` function will first aggregate neighbourhoods into groups based on the overlap provided and the same log fold change sign. Most 
@@ -465,47 +450,43 @@ The `findNhoodMarkers` function returns `data.frame` containing paris of columns
 changes and adjusted P-values, along with a GeneID column. The format of the latter is the same as the input data, so in our case these are Ensembl 
 gene IDs.
 
-```{r, nhood-expression, message=FALSE, warning=FALSE}
+```{r}
 thymus.mylo <- calcNhoodExpression(thymus.mylo) # This make plotting faster later.
 ```
 
 
-```{r, define-nhood-groups, message=FALSE, warning=FALSE}
+```{r}
 # keep.genes <- rownames(thymus.mylo)[rowMeans(logcounts(thymus.mylo[colData(thymus.mylo)$Cluster %in% c("Intertypical TEC")])) >= 0.1]
 keep.genes <- rownames(thymus.mylo)[!grepl(rownames(thymus.mylo), pattern="(Gm)|(Rik)")]
 
 # do the nhood grouping and add to DA results
 thymus.res <- groupNhoods(thymus.mylo, thymus.res, da.fdr=0.1, overlap=5,
                           max.lfc.delta=0.1,
-                          subset.nhoods=thymus.res$Cluster %in% c("Intertypical TEC", "Mature mTEC"),
+                          #subset.nhoods=thymus.res$Cluster %in% c("Intertypical TEC"),
                           compute.new=TRUE)
 ```
 
 We can overlay the nhood groups onto the UMAP to see how they correspond to the clusters in the original manuscript.
 
-```{r, plot-nhood-groups, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=8.95}
+```{r}
 plotNhoodGroups(thymus.mylo, thymus.res) +
-  guides(fill=guide_legend(ncol=4, override.aes=list(size=3))) +
-  theme(legend.box="horizontal") +
-  ggsave("~/Dropbox/Milo/revision/figures/Mouse_Thymus_nhoodGroups.pdf",
-         height=3.95, width=8.95, useDingbats=FALSE) +
-  NULL
+  guides(fill=guide_legend(ncol=4, override.aes=list(size=3)))
 ```
 
-```{r, tabulate-nhood-groups, warning=FALSE, message=FALSE}
+```{r}
 table(thymus.res$Cluster, thymus.res$NhoodGroup)
 ```
 
+
 This shows that the age-depleted Intertypical TEC are in neighbourhood group 5.
 
-```{r, nhood-markers, warning=FALSE, message=FALSE}
+```{r}
 thymus.markers <- findNhoodGroupMarkers(thymus.mylo, thymus.res,
-                                        subset.groups=c("3", "4", "5"),
-                                        #subset.nhoods=thymus.res$NhoodGroup %in% c("3", "4", "5"),
-                                        #subset.nhoods=thymus.res$Cluster %in% c("Intertypical TEC", "Mature mTEC"),
+                                        subset.nhoods=thymus.res$Cluster %in% c("Intertypical TEC"),
+                                        subset.groups=c(3, 4, 5),
                                         subset.row=keep.genes, aggregate.samples = TRUE,
                                         sample_col="ExpSamp",
-                                        gene.offset=FALSE)
+                                        gene.offset=FALSE) 
 # thymus.markers$GeneID <- rownames(thymus.mylo):
 # itec.groups <- thymus.markers$groups
 # thymus.markers <- thymus.markers$dge
@@ -516,10 +497,10 @@ head(thymus.markers)
 We can visualise these results in a heatmap, which nicely illustrates the gradient of gene expression across neighbourhoods, ranked by their log 
 fold changes. Due to the large number of genes, I'll subset to just those with a log fold change $\gt1$.
 
-```{r, expression-heatmap, fig.height=7.95, fig.width=7.55, warning=FALSE}
+```{r, fig.height=5.95, fig.width=6.55, warning=FALSE}
 plot.select <- c("Cd40", "Ccl21a", "Ly6a", "Stat1", "Il18r1", "Stat4", "Aff3", "Ptpn18")
 
-select.markers <- unique(c(thymus.markers[thymus.markers$adj.P.Val_5 < 0.05 & thymus.markers$logFC_5 > 1, ]$GeneID, 
+select.markers <- unique(c(thymus.markers[thymus.markers$adj.P.Val_5 < 0.05 & thymus.markers$logFC_5 > 0, ]$GeneID, 
                            # thymus.markers[thymus.markers$adj.P.Val_2 < 0.01 & thymus.markers$logFC_2 > 1, ]$GeneID,
                            plot.select))
 
@@ -541,17 +522,17 @@ plotNhoodExpressionDA(thymus.mylo, da.res=thymus.res, alpha=0.1,
         legend.box.margin=margin(0, 0, 0, 50))
 
 ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_iTEC_heatmap.pdf",
-       height=6.15, width=7.55, useDingbats=FALSE)
+       height=5.95, width=6.55, useDingbats=FALSE)
 
 ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_iTEC_heatmap.png",
-       height=6.15, width=7.55, dpi=90)
+       height=5.95, width=6.55, dpi=90)
 ```
 
 What are these DE genes between neighbourhoods? I'll perform a gene set enrichment analysis to see what pathways are enriched.
 
-```{r, pathway-enrichment, warning=FALSE, message=FALSE}
+```{r}
 dbs <- c("GO_Biological_Process_2018")
-de.genes <- unique(c(thymus.markers[thymus.markers$adj.P.Val_5 < 0.05, ]$GeneID))
+de.genes <- unique(c(thymus.markers[thymus.markers$adj.P.Val_5 < 0.1 & thymus.markers$logFC_5 > 0, ]$GeneID))
                      #thymus.markers[thymus.markers$adj.P.Val_2 < 0.01, ]$GeneID))
 print(length(de.genes))
 itec.enrichr <- enrichr(de.genes, dbs)$GO_Biological_Process_2018
