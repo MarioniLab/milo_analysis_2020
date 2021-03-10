@@ -56,14 +56,14 @@ knitr::include_graphics("suppl_figs/suppl_fig_Kselection.pdf", auto_pdf = TRUE)
 ```
 
 (ref:sup-fig-Kselection) **Selection of $K$ parameter** 
-(A) Illustrative examples of TPR-FDR tradeoff for increasing values of k used for k-NN graph building on simulated DA on 4 regions. Dotted lines highlight TPR=0.8 and FDR=0.1 thresholds. 
-(B) The median number of cells per experimental sample is a function of the neighbourhood size snsdivided by the total number of samples (S). (C) Histogram of neighbourhood sizes for different choices of k. The red dotted line denotes the minimum neighbourhood size to obtain 5 cells per sample on average. 
+(A) Illustrative examples of TPR-FDR trade-off for increasing values of $K$ used for k-NN graph building on simulated DA on 4 regions. Dotted lines highlight TPR=0.8 and FDR=0.1 thresholds. 
+(B) The median number of cells per experimental sample is a function of the neighbourhood size snsdivided by the total number of samples (S). (C) Histogram of neighbourhood sizes for different choices of $K$. The red dotted line denotes the minimum neighbourhood size to obtain 5 cells per sample on average. 
 
 ```{r sup-fig-robustness, fig.pos="ht", fig.cap="(ref:sup-fig-robustness)", echo=FALSE}
-# knitr::include_graphics("suppl_figs/suppl_fig_robustness.pdf", auto_pdf = TRUE)
+knitr::include_graphics("suppl_figs/suppl_fig_robustness.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig-robustness) **Robustness of Milo DA testing to varying $K$**. Distributions of DA neighbourhoods across values of k for the mouse ageing thymus (A) and human cirrhotic liver (B) data sets. Shown are the distributions of log fold-changes (y-axis) for DA (FDR 10%) neighbourhoods using different values of k (x-axis) from 5-100, illustrating that DA testing is robust across a broad range of values of k.
+(ref:sup-fig-robustness) **Robustness of Milo DA testing to varying K**. Distributions of DA neighbourhoods across values of $K$ for the mouse ageing thymus (A) and human cirrhotic liver (B) data sets. Shown are the distributions of log fold-changes (y-axis) for DA (FDR 10%) neighbourhoods using different values of $K$ (x-axis) from 5-100, illustrating that DA testing is robust across a broad range of values of $K$.
 
 ```{r sup-fig-bm-threshold, fig.pos="ht", fig.cap="(ref:sup-fig-bm-threshold)", echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_bm_threshold.pdf", auto_pdf = TRUE)
@@ -81,14 +81,21 @@ knitr::include_graphics("suppl_figs/suppl_fig_bm_simulations.pdf", auto_pdf = TR
 knitr::include_graphics("suppl_figs/suppl_fig_bm_batcheffects.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig-bm-batcheffects) **Tolerance of DA analysis to batch effects.** (A) Comparison of performance of DA methods with no batch effect, with batch effects of increasing magnitude corrected with MNN, and uncorrected batch effects. (B) Comparison of Milo performance with (~ batch + condition) or without (~ condition) accounting for the simulated batch in the GLM. Points denote the Mean True Positive Rate (left) and False Discovery Rate (right) for recovery of cells in simulated DA regions with simulated batch effects of increasing magnitude. The mean is calculated over 27 simulations on 9 populations. Line shading indicates the standard deviation of the mean. Each panel represents a different DA effect size. 
+(ref:sup-fig-bm-batcheffects) **Tolerance of DA analysis to batch effects.** (A) Comparison of performance of DA methods with no batch effect, with batch effects of increasing magnitude corrected with `fastMNN`, and uncorrected batch effects. (B) Comparison of Milo performance with (~ batch + condition) or without (~ condition) accounting for the simulated batch in the GLM. Points denote the Mean True Positive Rate (left) and False Discovery Rate (right) for recovery of cells in simulated DA regions with simulated batch effects of increasing magnitude. The mean is calculated over 27 simulations on 9 populations. Line shading indicates the standard deviation of the mean. Each panel represents a different DA effect size (Max C1 probability). 
 
 ```{r sup-fig-scalability, fig.pos="ht", fig.cap="(ref:sup-fig-scalability)",   out.width = "500px",echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_scalability.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig-scalability) **Memory usage across the Milo analysis workflow**
-otal memory usage across the steps of the Milo analysis workflow in 4 datasets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey pointed denote down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) k-NN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all datasets for graph building and neighbourhood construction (k=30).
+(ref:sup-fig-scalability) **Memory usage across the Milo analysis workflow.**
+Total memory usage across the steps of the Milo analysis workflow in 4 datasets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denote down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) k-NN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all datasets for graph building and neighbourhood construction (k=30).
+
+```{r sup-fig-thymus-nhoods, fig.pos="ht", fig.cap="(ref:sup-fig-thymus-nhoods)", echo=FALSE}
+knitr::include_graphics("suppl_figs/suppl_fig_thymusNhoods.pdf", auto_pdf = TRUE)
+```
+
+(ref:sup-fig-thymus-nhoods) **Label transferred neighbourhood groups onto droplet scRNA-seq cells.** (A) Joint UMAP embedding for SMART-seq and droplet scRNA-seq datasets, points are coloured by label-transferred neighbourhood groups for the droplet scRNA-seq cells. (B) Proportions of label-transferred neighbourhood groups across mouse ages (n=3 replicates per age), corresponding to (A).
+
 
 ```{r sup-fig-liver-endo, fig.pos="ht", fig.cap="(ref:sup-fig-liver-endo)", echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_liver_endo.pdf", auto_pdf = TRUE)
