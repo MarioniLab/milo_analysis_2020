@@ -1,0 +1,105 @@
+---
+title: "Mouse thymus: Validating differential abundance findings"
+output: html_notebook
+---
+
+# Introduction
+
+I have integrated the SMART-seq and droplet mouse thymus data sets. Now we can examine whether the proportions of the cells in the droplet data 
+vary with age, and if the most similar cells to the depleted mTEC-biased Intertypical TEC are also depleted with age.
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(reshape2)
+library(ggthemes)
+library(cowplot)
+library(ggrastr)
+library(ggsci)
+library(RColorBrewer)
+library(scales)
+```
+
+What does the integrated UMAP look like?
+
+```{r, warning=FALSE, message=FALSE}
+umap.df <- read.table("~/Dropbox/Milo/simulations/Combined_UMAP_meta.tsv",
+                      sep="\t", header=TRUE, stringsAsFactors=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=7.15}
+ggplot(umap.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
+                  colour='grey80', size=0.1) +
+  geom_point_rast(aes(colour=Batch), size=0.5) +
+  theme_cowplot() +
+  scale_colour_aaas() +
+  facet_wrap(~Batch) +
+  guides(colour=guide_legend(override.aes=list(size=3))) +
+  NULL
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=9.95, fig.width=9.15}
+ggplot(umap.df, aes(x=UMAP1, y=UMAP2)) +
+  geom_point_rast(data=umap.df[, c("UMAP1", "UMAP2")],
+                  colour='grey80', size=0.1) +
+  geom_point_rast(aes(colour=Batch), size=0.5) +
+  theme_cowplot() +
+  scale_colour_aaas() +
+  facet_wrap(~Cluster) +
+  guides(colour=guide_legend(override.aes=list(size=3))) +
+  NULL
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+thymus.groups <- read.table("~/Dropbox/Milo/simulations/Thymus_NhoodGroups.txt",
+                            sep="\t", header=TRUE, stringsAsFactors=FALSE)
+table(thymus.groups$Nhood.Group)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+mnn.props <- read.table("~/Dropbox/Milo/simulations/Thymus-MNN_props.txt",
+                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
+colnames(mnn.props) <- c("SampID", "Age", "Freq", "NhoodGroup")
+mnn.props$Age <- factor(mnn.props$Age,
+                        levels=c("Wk1", "Wk4", "Wk16"))
+
+mnn.props$NhoodGroup <- ordered(mnn.props$NhoodGroup,
+                                levels=c(1:9),
+                                labels=paste0("Nhood Group ", c(1:9)))
+```
+
+From our previous analyses, we have seen that the mTEC-biased Intertypical TEC correspond to Nhood group 5. The others correspond to the enriched 
+Intertypical TEC and the mature mTEC and proliferating TEC.
+
+```{r, warning=FALSE, message=FALSE, fig.width=4.95, fig.height=2.15}
+
+age.cols <- viridis(option="magma", n=5)
+names(age.cols) <- c("Wk1", "Wk4", "Wk16", "32wk", "52wk")
+
+ggplot(mnn.props[mnn.props$NhoodGroup %in% c("Nhood Group 3", "Nhood Group 5"), ], 
+       aes(x=Age, y=Freq*100)) +
+  geom_boxplot(aes(fill=Age), alpha=0.5) +
+  geom_jitter(aes(colour=Age), position=position_jitter(width=0.25)) +
+  theme_cowplot() +
+  facet_wrap(~NhoodGroup, scales="free", ncol=2) +
+  expand_limits(y=c(0)) +
+  # coord_flip() +
+  scale_fill_manual(values=age.cols, breaks=c("Wk1", "Wk4", "Wk16")) +
+  scale_colour_manual(values=age.cols, breaks=c("Wk1", "Wk4", "Wk16")) +
+  theme(aspect=1,
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        strip.background=element_rect(fill='white', colour='white')) +
+  labs(y="%TEC", x="") +
+  ggsave("~/Dropbox/Milo/revision/figures/MouseThymus_dropletMNN-boxplots.pdf",
+         height=2.15, width=4.95, useDingbats=FALSE) +
+  NULL
+```
+
+
+
+
