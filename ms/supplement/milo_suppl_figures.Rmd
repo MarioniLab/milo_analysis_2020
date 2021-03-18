@@ -46,13 +46,6 @@ knitr::include_graphics("suppl_figs/suppl_fig_clustering.pdf", auto_pdf = TRUE)
 (C) A Louvain clustering of the data in (A) using the same KNN graph. Cells are coloured by the Louvain clustering identity.
 (D-E) Heatmaps comparing the numbers of cells in each cluster with respect to the ground truth groups in (A). Each cell is coloured by the proportion of cells from the column groups (ground truth) that are assigned to the respective cluster.
 
-```{r sup-fig-robustness,  fig.cap="(ref:sup-fig-robustness)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig_krobustness.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig-robustness) **Robustness of Milo DA testing to varying K**. Distributions of DA neighbourhoods across values of K for the mouse ageing thymus (A) and human cirrhotic liver (B) data sets. Shown are the distributions of log fold-changes (y-axis) for DA (FDR 10%) neighbourhoods using different values of K (x-axis) from 5-100, illustrating that DA testing is robust across a broad range of values of K.
-
-
 ```{r sup-fig-bm-threshold,  fig.cap="(ref:sup-fig-bm-threshold)", echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_bm_threshold.pdf", auto_pdf = TRUE)
 ```
@@ -107,7 +100,8 @@ knitr::include_graphics("suppl_figs/suppl_fig_meldVSmilo.pdf", auto_pdf = TRUE)
 knitr::include_graphics("suppl_figs/suppl_fig_MSE-k_vs_replicates.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig-msek) **Impact of replication and k selection on variance in estimates** 
+(ref:sup-fig-msek) **The impact of replication and k selection on effect size estimation variance.** (A) A UMAP of the mouse thymus data with a single simulated DA. Points are single cells coloured by the P(Condition1). (B) Increasing the number of replicates reduces the difference between the true simulated and estimated effect sizes, using the mean squared error (MSE; top panel) and increases the testing true positive rate (TPR; bottom panel). (C) Increasing k marginally reduces the estimation variance (top panel), and has less of an impact on power (bottom panel) compared to increased replication.
+ 
 
 ```{r sup-fig-scalability,  fig.cap="(ref:sup-fig-scalability)",   out.width = "500px",echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_memory.pdf", auto_pdf = TRUE)
@@ -141,6 +135,12 @@ Downstream analysis of disease-specific cholangiocyte subpopulations in liver ci
 (D) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.
 
 <!-- only in the supplement -->
+
+```{r sup-fig-robustness,  fig.cap="(ref:sup-fig-robustness)", echo=FALSE}
+knitr::include_graphics("suppl_figs/suppl_fig_krobustness.pdf", auto_pdf = TRUE)
+```
+
+(ref:sup-fig-robustness) **Robustness of Milo DA testing to varying K**. Distributions of DA neighbourhoods across values of K for the mouse ageing thymus (A) and human cirrhotic liver (B) data sets. Shown are the distributions of log fold-changes (y-axis) for DA (FDR 10%) neighbourhoods using different values of K (x-axis) from 5-100, illustrating that DA testing is robust across a broad range of values of K.
 
 ```{r sup-fig-Kselection,  fig.cap="(ref:sup-fig-Kselection)", echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_Kselection.pdf", auto_pdf = TRUE)

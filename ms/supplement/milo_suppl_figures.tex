@@ -119,14 +119,6 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 \begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig_krobustness.pdf}
-\caption{\label{fig:sup-fig-robustness}\textbf{Robustness of Milo DA testing to varying K}. Distributions of DA neighbourhoods across values of K for the mouse ageing thymus (A) and human cirrhotic liver (B) data sets. Shown are the distributions of log fold-changes (y-axis) for DA (FDR 10\%) neighbourhoods using different values of K (x-axis) from 5-100, illustrating that DA testing is robust across a broad range of values of K.}
-\end{figure}
-
-
-
-\begin{figure}
-\centering
 \includegraphics{suppl_figs/suppl_fig_bm_threshold.pdf}
 \caption{\label{fig:sup-fig-bm-threshold}\textbf{Selection of probability threshold for DA benchmarking.} Mean True Positive Rate (left) and False Discovery Rate (right) for recovery of cells in simulated DA regions as a function of probability threshold \(t\) picked to define true DA. The dashed line indicates \(t = 0.6\), that was selected for benchmarking analyses. The mean is calculated over simulations on 8 populations. Line shading indicates the standard deviation of the mean.}
 \end{figure}
@@ -184,7 +176,7 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 \begin{figure}
 \centering
 \includegraphics{suppl_figs/suppl_fig_MSE-k_vs_replicates.pdf}
-\caption{\label{fig:sup-fig-msek}\textbf{Impact of replication and k selection on variance in estimates}}
+\caption{\label{fig:sup-fig-msek}\textbf{The impact of replication and k selection on effect size estimation variance.} (A) A UMAP of the mouse thymus data with a single simulated DA. Points are single cells coloured by the P(Condition1). (B) Increasing the number of replicates reduces the difference between the true simulated and estimated effect sizes, using the mean squared error (MSE; top panel) and increases the testing true positive rate (TPR; bottom panel). (C) Increasing k marginally reduces the estimation variance (top panel), and has less of an impact on power (bottom panel) compared to increased replication.}
 \end{figure}
 
 
@@ -228,6 +220,14 @@ Downstream analysis of disease-specific cholangiocyte subpopulations in liver ci
 
 
 
+
+
+
+\begin{figure}
+\centering
+\includegraphics{suppl_figs/suppl_fig_krobustness.pdf}
+\caption{\label{fig:sup-fig-robustness}\textbf{Robustness of Milo DA testing to varying K}. Distributions of DA neighbourhoods across values of K for the mouse ageing thymus (A) and human cirrhotic liver (B) data sets. Shown are the distributions of log fold-changes (y-axis) for DA (FDR 10\%) neighbourhoods using different values of K (x-axis) from 5-100, illustrating that DA testing is robust across a broad range of values of K.}
+\end{figure}
 
 
 
