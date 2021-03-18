@@ -28,9 +28,9 @@ knitr::include_graphics("figs/fig_milo.pdf", auto_pdf = TRUE)
 (ref:fig-milo) **Detecting perturbed cell states as differentially abundant graph neighbourhoods**
 (A) Schematic of the Milo workflow. 
 Neighbourhoods are defined on index cells, selected using a graph sampling algorithm.
-<!-- Randomly sampled k-NN graph vertices (single-cells) are refined using a nearest-to median-position approach [REF]. Neighbourhoods are defined on each index vertex (cell), and  -->
+<!-- Randomly sampled KNN graph vertices (single-cells) are refined using a nearest-to median-position approach [REF]. Neighbourhoods are defined on each index vertex (cell), and  -->
 Cells are quantified according to the experimental design to generate a counts table. Per-neighbourhood cell counts are modelled using a negative binomial GLM, and hypothesis testing is performed to determine differentially abundant neighbourhoods.
-(B) A force-directed layout of a k-NN graph representing a simulated continuous trajectory of cells sampled from 2 experimental conditions (top panel - A: purple, B: white, bottom panel - kernel density of cells in condition ‘B’).
+(B) A force-directed layout of a KNN graph representing a simulated continuous trajectory of cells sampled from 2 experimental conditions (top panel - A: purple, B: white, bottom panel - kernel density of cells in condition ‘B’).
 (C) Hypothesis testing using Milo accurately and specifically detects differentially abundant neighbourhoods (FDR 1%). Red points denote DA neighbourhoods.
 (D) 
 A graph representation of the results from Milo differential abundance testing. Nodes are neighbourhoods, coloured by their log fold-change. Non-DA neighbourhoods (FDR 1%) are coloured white, and sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods. The layout of nodes is determined by the position of the neighbourhood index cell in the force-directed embedding of single cells. 
