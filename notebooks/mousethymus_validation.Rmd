@@ -58,7 +58,7 @@ For the MNN label transfer, we only need to visualise the nhood groups for the I
 
 ```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=1.95}
 nhood.groups <- unique(thymus.groups$Nhood.Group)
-group.cols <- colorRampPalette(brewer.pal(11, "Spectral"))(length(nhood.groups))
+group.cols <- pal_d3()(9)
 names(group.cols) <- paste0("Nhood Group ", c(1:9))
 
 umap.df$Nhood.Group <- NA
@@ -235,7 +235,8 @@ mnn.props <- read.table("~/Dropbox/Milo/simulations/Thymus-MNN_props.txt",
                         sep="\t", header=TRUE, stringsAsFactors=FALSE)
 colnames(mnn.props) <- c("SampID", "Age", "Freq", "NhoodGroup")
 mnn.props$Age <- factor(mnn.props$Age,
-                        levels=c("Wk1", "Wk4", "Wk16"))
+                        levels=c("Wk1", "Wk4", "Wk16"),
+                        labels=c("1wk", "4wk", "16wk"))
 
 mnn.props$NhoodGroup <- ordered(mnn.props$NhoodGroup,
                                 levels=c(1:9),
@@ -246,8 +247,9 @@ From our previous analyses, we have seen that the mTEC-biased Intertypical TEC c
 Intertypical TEC and the mature mTEC and proliferating TEC.
 
 ```{r, warning=FALSE, message=FALSE, fig.width=5.25, fig.height=4.25}
+set.seed(42)
 age.cols <- viridis(option="magma", n=5)
-names(age.cols) <- c("Wk1", "Wk4", "Wk16", "32wk", "52wk")
+names(age.cols) <- c("4wk", "32wk", "1wk", "16wk", "52wk")
 
 ggplot(mnn.props[mnn.props$NhoodGroup %in% paste0("Nhood Group ", c(1:9)), ],
        aes(x=Age, y=Freq)) +
@@ -257,8 +259,8 @@ ggplot(mnn.props[mnn.props$NhoodGroup %in% paste0("Nhood Group ", c(1:9)), ],
   facet_wrap(~NhoodGroup, scales="free", ncol=3) +
   expand_limits(y=c(0)) +
   # coord_flip() +
-  scale_fill_manual(values=age.cols, breaks=c("Wk1", "Wk4", "Wk16")) +
-  scale_colour_manual(values=age.cols, breaks=c("Wk1", "Wk4", "Wk16")) +
+  scale_fill_manual(values=age.cols, labels=c("1wk", "4wk", "16wk", "32wk", "52wk")) +
+  scale_colour_manual(values=age.cols, labels=c("1wk", "4wk", "16wk", "32wk", "52wk")) +
   theme(#aspect=1,
         axis.text.x=element_blank(),
         axis.ticks.x=element_blank(),
@@ -275,6 +277,7 @@ ggplot(mnn.props[mnn.props$NhoodGroup %in% paste0("Nhood Group ", c(1:9)), ],
 
 
 ```{r, warning=FALSE, message=FALSE, fig.width=1.75, fig.height=4.15}
+set.seed(42)
 ggplot(mnn.props[mnn.props$NhoodGroup %in% paste0("Nhood Group ", c(3:5)), ],
        aes(x=Age, y=Freq)) +
   geom_boxplot(aes(fill=Age), alpha=0.5) +

@@ -31,6 +31,7 @@ library(colorspace)
 library(patchwork)
 library(enrichR)
 library(scater)
+library(ggsci)
 ```
 
 We're loading in the data from an accompanying package that contains a few publicly available data sets. In this instance we've 
@@ -468,10 +469,19 @@ thymus.res <- groupNhoods(thymus.mylo, thymus.res, da.fdr=0.1, overlap=5,
 
 We can overlay the nhood groups onto the UMAP to see how they correspond to the clusters in the original manuscript.
 
-```{r}
+```{r, fig.height=4.55, fig.width=9.95, warning=FALSE}
+nhood.cols <- pal_d3()(9)
+names(nhood.cols) <- c(1:9)
+
 plotNhoodGroups(thymus.mylo, thymus.res) +
-  guides(fill=guide_legend(ncol=4, override.aes=list(size=3)))
+  guides(fill=guide_legend(ncol=4, override.aes=list(size=3))) +
+  theme(legend.box="horizontal") +
+  scale_fill_manual(values=nhood.cols) +
+  guides(fill=guide_legend(title="Nhood Group", override.aes = list(size=3))) +
+  ggsave("~/Dropbox/Milo/revision/figures/Mouse_Thymus_nhoodGroups.pdf",
+         height=4.55, width=9.95, useDingbats=FALSE)
 ```
+
 
 ```{r}
 table(thymus.res$Cluster, thymus.res$NhoodGroup)
@@ -533,7 +543,7 @@ What are these DE genes between neighbourhoods? I'll perform a gene set enrichme
 ```{r}
 dbs <- c("GO_Biological_Process_2018")
 de.genes <- unique(c(thymus.markers[thymus.markers$adj.P.Val_5 < 0.1 & thymus.markers$logFC_5 > 0, ]$GeneID))
-                     #thymus.markers[thymus.markers$adj.P.Val_2 < 0.01, ]$GeneID))
+                     #thymus.markers[thymus.markers$adj.P.Val_2 < 0.01, ]$GeneID)) 
 print(length(de.genes))
 itec.enrichr <- enrichr(de.genes, dbs)$GO_Biological_Process_2018
 head(itec.enrichr[itec.enrichr$Adjusted.P.value < 0.1, ])
