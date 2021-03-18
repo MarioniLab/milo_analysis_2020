@@ -126,7 +126,7 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 
 \begin{figure}
-\includegraphics[width=500px]{suppl_figs/suppl_fig_bm_simulations} \caption{\textbf{Benchmarking DA methods on simulated data.} DA analysis performance on KNN graphs from simulated datasets of different topologies: (A) discrete clusters (1800 cells, 3 populations); (B) 1-D linear trajectory (7500 cells, 7 populations); (C) Branching trajectory (7500 cells, 10 populations).}\label{fig:sup-fig-bm-simulations}
+\includegraphics[width=500px]{suppl_figs/suppl_fig_bm_simulations} \caption{\textbf{Benchmarking DA methods on simulated data.} DA analysis performance on KNN graphs from simulated datasets of different topologies: (A) discrete clusters (2700 cells, 3 populations); (B) 1-D linear trajectory (7500 cells, 7 populations); (C) Branching trajectory (7500 cells, 10 populations).}\label{fig:sup-fig-bm-simulations}
 \end{figure}
 
 
@@ -144,9 +144,15 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 
 \begin{figure}
+\includegraphics[width=500px]{suppl_figs/suppl_fig_meldVSmilo} \caption{\textbf{Comparison of Milo and MELD for abundance fold-change estimation.} (A-D) Scatter-plots of the true fold-change at the neighbourhood index against the fold-change estimated by Milo (A,C) and MELD (B,D), without batch effect (A-B) and with batch effect (magnitude = 0.5) (C-D), where \(LFC = log(p_{c'}/(1 - p_{c'}))\). The neighbourhoods overlapping true DA cells (\(p_{c'}>0.6\)) are highlighted in red. (C-D) Mean Squared Error (MSE) comparison for MELD and Milo for true negative neighbourhood (C) and true positive neighbourhoods (D), with increasing simulated log-Fold Change and magnitude of batch effect.}\label{fig:sup-fig-bm-meld}
+\end{figure}
+
+
+
+\begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig_bm_batch.pdf}
-\caption{\label{fig:sup-fig-bm-batch}\textbf{Batch effect control across DA effect sizes.} True Positive Rate (TPR, left) and False Discovery Rate (FDR, right) for recovery of cells in simulated DA regions for DA populations with increasing batch effect magnitude on the mouse gastrulation dataset. For each boxplot, results from 8 populations and 3 condition simulations per population are shown. Each panel represents a different DA method and a different simulated log-Fold Change.}
+\includegraphics{suppl_figs/suppl_fig_MSE-k_vs_replicates.pdf}
+\caption{\label{fig:sup-fig-msek}\textbf{The impact of replication and k selection on effect size estimation variance.} (A) A UMAP of the mouse thymus data with a single simulated DA. Points are single cells coloured by the P(Condition1). (B) Increasing the number of replicates reduces the difference between the true simulated and estimated effect sizes, using the mean squared error (MSE; top panel) and increases the testing true positive rate (TPR; bottom panel). (C) Increasing k marginally reduces the estimation variance (top panel), and has less of an impact on power (bottom panel) compared to increased replication.}
 \end{figure}
 
 
@@ -161,22 +167,16 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 \begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig_bm_design.pdf}
-\caption{\label{fig:sup-fig-bm-design}\textbf{Modelling batch effects in DA analysis with Milo.} (B) Comparison of Milo performance with (\textasciitilde{} batch + condition) or without (\textasciitilde{} condition) accounting for the simulated batch in the GLM. For each boxplot, results from 8 populations, simulated fold change \textgreater{} 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot).}
-\end{figure}
-
-
-
-\begin{figure}
-\includegraphics[width=500px]{suppl_figs/suppl_fig_meldVSmilo} \caption{\textbf{Comparison of Milo and MELD for abundance fold-change estimation.} (A-D) Scatter-plots of the true fold-change at the neighbourhood index against the fold-change estimated by Milo (A,C) and MELD (B,D), without batch effect (A-B) and with batch effect (magnitude = 0.5) (C-D), where \(LFC = log(p_{c'}/(1 - p_{c'}))\). The neighbourhoods overlapping true DA cells (\(p_{c'}>0.6\)) are highlighted in red. (C-D) Mean Squared Error (MSE) comparison for MELD and Milo for true negative neighbourhood (C) and true positive neighbourhoods (D), with increasing simulated log-Fold Change and magnitude of batch effect.}\label{fig:sup-fig-bm-meld}
+\includegraphics{suppl_figs/suppl_fig_bm_batch.pdf}
+\caption{\label{fig:sup-fig-bm-batch}\textbf{Batch effect control across DA effect sizes.} True Positive Rate (TPR, left) and False Discovery Rate (FDR, right) for recovery of cells in simulated DA regions for DA populations with increasing batch effect magnitude on the mouse gastrulation dataset. For each boxplot, results from 8 populations and 3 condition simulations per population are shown. Each panel represents a different DA method and a different simulated log-Fold Change.}
 \end{figure}
 
 
 
 \begin{figure}
 \centering
-\includegraphics{suppl_figs/suppl_fig_MSE-k_vs_replicates.pdf}
-\caption{\label{fig:sup-fig-msek}\textbf{The impact of replication and k selection on effect size estimation variance.} (A) A UMAP of the mouse thymus data with a single simulated DA. Points are single cells coloured by the P(Condition1). (B) Increasing the number of replicates reduces the difference between the true simulated and estimated effect sizes, using the mean squared error (MSE; top panel) and increases the testing true positive rate (TPR; bottom panel). (C) Increasing k marginally reduces the estimation variance (top panel), and has less of an impact on power (bottom panel) compared to increased replication.}
+\includegraphics{suppl_figs/suppl_fig_bm_design.pdf}
+\caption{\label{fig:sup-fig-bm-design}\textbf{Modelling batch effects in DA analysis with Milo.} (B) Comparison of Milo performance with (\textasciitilde{} batch + condition) or without (\textasciitilde{} condition) accounting for the simulated batch in the GLM. For each boxplot, results from 8 populations, simulated fold change \textgreater{} 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot).}
 \end{figure}
 
 
@@ -252,14 +252,6 @@ Downstream analysis of disease-specific cholangiocyte subpopulations in liver ci
 
 \begin{figure}
 \centering
-\includegraphics{suppl_tables/table_methods_comparison.pdf}
-\caption{\label{fig:sup-tab-1}\textbf{Qualitative comparison of evaluated methods for DA analysis}}
-\end{figure}
-
-
-
-\begin{figure}
-\centering
 \includegraphics{suppl_tables/table_simulation_params.pdf}
 \caption{\label{fig:sup-tab-2}\textbf{Summary of parameters used for DA simulations}}
 \end{figure}
@@ -270,6 +262,14 @@ Downstream analysis of disease-specific cholangiocyte subpopulations in liver ci
 \centering
 \includegraphics{suppl_tables/table_methods_params.pdf}
 \caption{\label{fig:sup-tab-3}\textbf{Summary of parameters used for benchmarking of DA methods}}
+\end{figure}
+
+
+
+\begin{figure}
+\centering
+\includegraphics{suppl_tables/table_methods_comparison.pdf}
+\caption{\label{fig:sup-tab-1}\textbf{Qualitative comparison of evaluated methods for DA analysis}}
 \end{figure}
 
 
