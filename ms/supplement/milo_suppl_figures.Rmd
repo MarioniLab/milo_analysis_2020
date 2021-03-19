@@ -56,7 +56,7 @@ knitr::include_graphics("suppl_figs/suppl_fig_bm_threshold.pdf", auto_pdf = TRUE
 knitr::include_graphics("suppl_figs/suppl_fig_bm_simulations.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig-bm-simulations) **Benchmarking DA methods on simulated data.** DA analysis performance on KNN graphs from simulated datasets of different topologies: (A) discrete clusters (1800 cells, 3 populations);  (B) 1-D linear trajectory (7500 cells, 7 populations); (C) Branching trajectory (7500 cells, 10 populations).
+(ref:sup-fig-bm-simulations) **Benchmarking DA methods on simulated data.** DA analysis performance on KNN graphs from simulated datasets of different topologies: (A) discrete clusters (2700 cells, 3 populations);  (B) 1-D linear trajectory (7500 cells, 7 populations); (C) Branching trajectory (7500 cells, 10 populations).
 
 ```{r sup-fig-bm-signal,  fig.cap="(ref:sup-fig-bm-signal)",  out.width = "500px", echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_signal2noise.pdf", auto_pdf = TRUE)
@@ -71,24 +71,6 @@ knitr::include_graphics("suppl_figs/suppl_fig_bm_size.pdf", auto_pdf = TRUE)
 
 (ref:sup-fig-bm-size) **DA testing power increases with the size of the DA population** True Positive Rate (TPR) of DA detection for simulated DA regions of increasing size centered at the same centroid (Erythroid2 (A) and Caudal neuroectoderm (B)). Results for 3 condition simulations per population and fold change are shown.
 
-```{r sup-fig-bm-batch,  fig.cap="(ref:sup-fig-bm-batch)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig_bm_batch.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig-bm-batch) **Batch effect control across DA effect sizes.** True Positive Rate (TPR, left) and False Discovery Rate (FDR, right) for recovery of cells in simulated DA regions for DA populations with increasing batch effect magnitude on the mouse gastrulation dataset. For each boxplot, results from 8 populations and 3 condition simulations per population are shown. Each panel represents a different DA method and a different simulated log-Fold Change.
- 
-
-```{r sup-fig-bm-mnn,  fig.cap="(ref:sup-fig-bm-mnn)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig_bm_MNN.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig-bm-mnn) **In silico batch correction enhances the performance of DA methods in the presence of batch effects.** Comparison of performance of DA methods with no batch effect, with batch effects of increasing magnitude corrected with MNN, and uncorrected batch effects. 
-
-```{r sup-fig-bm-design,  fig.cap="(ref:sup-fig-bm-design)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig_bm_design.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-fig-bm-design) **Modelling batch effects in DA analysis with Milo.**  (B) Comparison of Milo performance with (~ batch + condition) or without (~ condition) accounting for the simulated batch in the GLM. For each boxplot, results from 8 populations, simulated fold change > 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot).
 
 ```{r sup-fig-bm-meld,  fig.cap="(ref:sup-fig-bm-meld)", out.width = "500px",echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_meldVSmilo.pdf", auto_pdf = TRUE)
@@ -102,6 +84,25 @@ knitr::include_graphics("suppl_figs/suppl_fig_MSE-k_vs_replicates.pdf", auto_pdf
 
 (ref:sup-fig-msek) **The impact of replication and k selection on effect size estimation variance.** (A) A UMAP of the mouse thymus data with a single simulated DA. Points are single cells coloured by the P(Condition1). (B) Increasing the number of replicates reduces the difference between the true simulated and estimated effect sizes, using the mean squared error (MSE; top panel) and increases the testing true positive rate (TPR; bottom panel). (C) Increasing k marginally reduces the estimation variance (top panel), and has less of an impact on power (bottom panel) compared to increased replication.
  
+```{r sup-fig-bm-mnn,  fig.cap="(ref:sup-fig-bm-mnn)", echo=FALSE}
+knitr::include_graphics("suppl_figs/suppl_fig_bm_MNN.pdf", auto_pdf = TRUE)
+```
+
+(ref:sup-fig-bm-mnn) **In silico batch correction enhances the performance of DA methods in the presence of batch effects.** Comparison of performance of DA methods with no batch effect, with batch effects of increasing magnitude corrected with MNN, and uncorrected batch effects.  
+
+
+```{r sup-fig-bm-batch,  fig.cap="(ref:sup-fig-bm-batch)", echo=FALSE}
+knitr::include_graphics("suppl_figs/suppl_fig_bm_batch.pdf", auto_pdf = TRUE)
+```
+
+(ref:sup-fig-bm-batch) **Batch effect control across DA effect sizes.** True Positive Rate (TPR, left) and False Discovery Rate (FDR, right) for recovery of cells in simulated DA regions for DA populations with increasing batch effect magnitude on the mouse gastrulation dataset. For each boxplot, results from 8 populations and 3 condition simulations per population are shown. Each panel represents a different DA method and a different simulated log-Fold Change.
+ 
+
+```{r sup-fig-bm-design,  fig.cap="(ref:sup-fig-bm-design)", echo=FALSE}
+knitr::include_graphics("suppl_figs/suppl_fig_bm_design.pdf", auto_pdf = TRUE)
+```
+
+(ref:sup-fig-bm-design) **Modelling batch effects in DA analysis with Milo.**  (B) Comparison of Milo performance with (~ batch + condition) or without (~ condition) accounting for the simulated batch in the GLM. For each boxplot, results from 8 populations, simulated fold change > 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot).
 
 ```{r sup-fig-scalability,  fig.cap="(ref:sup-fig-scalability)",   out.width = "500px",echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_memory.pdf", auto_pdf = TRUE)
@@ -156,23 +157,24 @@ knitr::include_graphics("suppl_figs/suppl_fig_Kselection.pdf", auto_pdf = TRUE)
 \renewcommand{\figurename}{Supplementary Table}
 \setcounter{figure}{0}  
 
-```{r sup-tab-1,  fig.cap="(ref:sup-tab-1)", echo=FALSE}
-knitr::include_graphics("suppl_tables/table_methods_comparison.pdf", auto_pdf = TRUE)
-```
-
-(ref:sup-tab-1) **Qualitative comparison of evaluated methods for DA analysis**
-
 ```{r sup-tab-2,  fig.cap="(ref:sup-tab-2)", echo=FALSE}
 knitr::include_graphics("suppl_tables/table_simulation_params.pdf", auto_pdf = TRUE)
 ```
 
 (ref:sup-tab-2) **Summary of parameters used for DA simulations**
 
+
 ```{r sup-tab-3,  fig.cap="(ref:sup-tab-3)", echo=FALSE}
 knitr::include_graphics("suppl_tables/table_methods_params.pdf", auto_pdf = TRUE)
 ```
 
 (ref:sup-tab-3) **Summary of parameters used for benchmarking of DA methods**
+
+```{r sup-tab-1,  fig.cap="(ref:sup-tab-1)", echo=FALSE}
+knitr::include_graphics("suppl_tables/table_methods_comparison.pdf", auto_pdf = TRUE)
+```
+
+(ref:sup-tab-1) **Qualitative comparison of evaluated methods for DA analysis**
 
 \newpage
 
