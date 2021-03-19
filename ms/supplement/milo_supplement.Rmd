@@ -29,27 +29,27 @@ link-citations: true
 
 ## Description of workflow for _Milo_ analysis
 
-Given a single-cell dataset of gene expression profiles of $M$ cells collected from $S$ experimental samples, _Milo_ aims to quantify systematic changes in abundance of cells between biological conditions, as compared to within-condition variability. Here we provide a step-by-step description of the workflow for differential abundance analysis. Of note, here we focus on application to single-cell gene expression profiles, and we provide guidelines for preprocessing on this type of data. However, the core of the _Milo_ framework, from KNN graph construction to differential abundance testing, is applicable to any kind of single-cell dataset that can be embedded in a low-dimensional space.
+Given a single-cell dataset of gene expression profiles of $M$ cells collected from $S$ experimental samples, _Milo_ aims to quantify systematic changes in the abundance of cells between biological conditions compared to within-condition variability. Here we provide a step-by-step description of the workflow for differential abundance analysis. Of note, we focus on the application to single-cell gene expression profiles, and we provide guidelines for pre-processing on this type of data. However, the core of the _Milo_ framework, from KNN graph construction to differential abundance testing, is applicable to any kind of single-cell dataset that can be embedded in a low-dimensional space.
 
 ### Preprocessing and dimensionality reduction {#pp}
 
-For preprocessing of scRNA-seq profiles we recommend following standard practices in single-cell analysis [@lueckenCurrentBestPractices2019; @amezquitaOrchestratingSinglecellAnalysis2020]: we normalize UMI counts by the total number of counts per cell, apply log-transformation and identify highly variable genes (HVGs). Then we project the $H \times M$ gene expression matrix, where $M$ is the number of cells and $H$ is the number of HVGs, to the first $d$ principal components (PCs). While downstream analysis is generally robust to the exact choice of the number of HVGs [@lueckenCurrentBestPractices2019], an optimal value for $d$ can be selected by detecting the "elbow" in the variance explained by PCs or using the "jackstraw" method [@chungStatisticalSignificanceVariables2015].
+For pre-processing of scRNA-seq profiles we recommend following standard practices in single-cell analysis [@lueckenCurrentBestPractices2019; @amezquitaOrchestratingSinglecellAnalysis2020]: we normalize UMI counts by the total number of counts per cell, apply log-transformation and identify highly variable genes (HVGs). Then we project the $H \times M$ gene expression matrix, where $M$ is the number of cells and $H$ is the number of HVGs, to the first $d$ principal components (PCs). While downstream analysis is generally robust to the exact choice of the number of HVGs [@lueckenCurrentBestPractices2019], an optimal value for $d$ can be selected by detecting the "elbow" in the variance explained by PCs or using the "jackstraw" method [@chungStatisticalSignificanceVariables2015].
 
 ### Minimizing batch effects
 
-Comparing biological conditions often requires acquiring single-cell data from multiple samples, that can be generated with different experimental conditions or protocols. This commonly introduces batch effects, which can have a substantial impact on the data composition and subsequently the topology of any KNN graph computed across the single-cell data. Consequently, this will have an impact on the ability of _Milo_ to resolve genuine differential abundance of cells between experimental conditions of interest. In addition, other biological nuisance covariates could impact DA analysis i.e. biological factors that are not of interest for the analyst, such as donor of origin or sex of the donor. We recommend to mitigate the impact of technical or other nuisance covariates _before_ building the KNN graph, by using one of the many _in silico_ integration tools designed for this task in single-cell datasets. 
+Comparing biological conditions often requires acquiring single-cell data from multiple samples, that can be generated with different experimental conditions or protocols. This commonly introduces batch effects, which can have a substantial impact on the data composition and subsequently the topology of any KNN graph computed across the single-cell data. Consequently, this will have an impact on the ability of _Milo_ to resolve genuine differential abundance of cells between experimental conditions of interest. In addition, other biological nuisance covariates can impact DA analysis i.e. biological factors that are not of interest for the analyst, such as donor of origin or sex of the donor. We recommend mitigating the impact of technical or other nuisance covariates _before_ building the KNN graph, by using one of the many _in silico_ integration tools designed for this task in single-cell datasets. 
 <!-- We showed on an  that this step increases the performance of all DA testing methods (Suppl. Fig. <....>).  -->
-Defining the best tool for this task is beyond the scope of this work, a large number of integration methods have been reviewed and benchmarked in [@lueckenBenchmarkingAtlaslevelData2020;@chazarra-gilFlexibleComparisonBatch2020;@tranBenchmarkBatcheffectCorrection2020]. However, users should consider the type of output produced by their integration method of choice, typically one of (A) a corrected feature space, (B) a joint embedding or (C) an integrated graph. The refined neighbourhood search procedure in _Milo_ relies on finding neighbors in reduced dimension space. Therefore using a methods that produces an integrated graph (e.g. BBKNN [@polanskiBBKNNFastBatch], Conos [@barkasJointAnalysisHeterogeneous2019]) could lead to suboptimal results in DA testing with _Milo_, because the refined neighbourhood search procedure would still be affected by the batch effect.
+Defining the best tool for this task is beyond the scope of this work; we refer the reader to a large number of integration methods that have been reviewed and benchmarked in [@lueckenBenchmarkingAtlaslevelData2020;@chazarra-gilFlexibleComparisonBatch2020;@tranBenchmarkBatcheffectCorrection2020]. However, users should consider the type of output produced by their integration method of choice, typically one of (A) a corrected feature space, (B) a joint embedding or (C) an integrated graph. The refined neighbourhood search procedure in _Milo_ relies on finding neighbors in reduced dimension space. Therefore using an batch-correction method that produces an integrated graph (e.g. BBKNN [@polanskiBBKNNFastBatch], Conos [@barkasJointAnalysisHeterogeneous2019]) may lead to sub-optimal results in DA testing with _Milo_, as the refined neighbourhood search procedure would still be affected by the batch effect.
 
 In addition, the effect of nuisance covariates should be modelled in the generalized linear model used for DA testing in _Milo_ to minimize the emergence of false positives in case of imperfect batch correction (see Section \@ref(testDA)) (Fig.2D).
 
-We wish to emphasize that, when confounders are present, an appropriate experimental design is crucial to obtain reliable results from differential abundance analysis: if nuisance factors are 100% confounded with the biological condition used for differential abundance (e.g. if the samples from diseased and healthy donors are processed in separate sequencing batches), there is no way to disentangle the abundance differences that are truly driven by the biology of interest. In a similar case applying a batch integration strategy before graph construction could lead to a loss of biological signal. 
+We wish to emphasize that, in the presence of confounding factors, an appropriate experimental design is crucial to obtain reliable results from differential abundance analysis: if nuisance factors are 100% confounded with the biological condition used for differential abundance (e.g. if the samples from diseased and healthy donors are processed in separate sequencing batches), there is no way to disentangle the abundance differences that are truly driven by the biology of interest. In a similar case applying a batch integration strategy before graph construction could lead to a loss of biological signal. 
 
 <!-- To minimize the emergence of false positive and false negative results that might be introduced by such technical effects, we recommend the following procedure: (1) Batch effects should be mitigated with computational data integration. Defining the best tool for this task is beyond the scope of this work (a large number of integration methods have been reviewed and benchmarked in [@lueckenBenchmarkingAtlaslevelData2020;@chazarra-gilFlexibleComparisonBatch2020;@tranBenchmarkBatcheffectCorrection2020]). However, users should consider the type of output obtained by their integration method of choice, which can be a corrected feature space, a joint embedding or an integrated graph. Using a methods that produces a graph (e.g. BBKNN [@polanskiBBKNNFastBatch], Conos [@barkasJointAnalysisHeterogeneous2019]) will lead to suboptimal results in DA testing with _Milo_ as the refined neighbourhood search procedure will still be affected by the batch effect, as this relies on finding neighbors in PCA space.  -->
 
 ### Building the KNN graph 
 
-_Milo_ uses a KNN graph computed based on similarities in gene expression space as a representation of the phenotypic manifold in which cells lie. While _Milo_ can be used on graphs built with different similarity kernels, here we compute the graph as follows: given the reduced dimension matrix $X_{PC}$ of dimensions $M \times d$, for each cell $j$, the Euclidean distances to its $K$ nearest neighbors in $X_{PC}$ are computed and stored in a $M \times M$ adjacency matrix $D$. Then, $D$ is made symmetrical, such that cells $c_i$ and $c_j$ are nearest neighbors (i.e. connected by an edge) if either $c_i$ is a nearest neighbor of $c_j$ or $c_j$ is a nearest neighbor of $c_i$. The KNN graph is encoded by the undirected symmetric version of $\tilde{D}$ of $D$, where each cell has at least $K$ nearest neighbors.
+_Milo_ uses a KNN graph computed based on similarities in gene expression space as a representation of the phenotypic manifold in which cells lie. While _Milo_ can be used on graphs built with different similarity kernels, here we compute the graph as follows: given the reduced dimension matrix $X_{PC}$ of dimensions $M \times d$, for each cell $j$, the Euclidean distances to its $K$ nearest neighbors in $X_{PC}$ are computed and stored in a $M \times M$ adjacency matrix $D$. Then, $D$ is made symmetrical, such that cells $c_i$ and $c_j$ are nearest neighbors (i.e. connected by an edge) if either $c_i$ is a nearest neighbor of $c_j$ or $c_j$ is a nearest neighbor of $c_i$. The KNN graph is encoded by the undirected symmetric version $\tilde{D}$ of $D$, where each cell has at least $K$ nearest neighbors.
 
 ### Definition of cell neighbourhoods and index sampling algorithm {#nh}
 
@@ -97,12 +97,55 @@ $$
 where $\lambda_{ns}$ is the proportion of cells belonging to experimental sample $s$ in $n$ and $M_s$ is the sum of counts of cells of $s$ over all the neighbourhoods. In practice, $\lambda_{ns}$ represents the biological variability that can be affected by treatment condition, age or any biological covariate of interest. 
 
 We use a log-linear model to model the influence of a biological condition on the expected counts in the neighbourhood:
-$$
-log\ \mu_{ns} = \sum_{g=1}^{G}x_{sg}\beta_{ng} + log\ M_s
-$$
+\begin{equation}
+  \label{eq:1}
+    log\ \mu_{ns} = \sum_{g=1}^{G}x_{sg}\beta_{ng} + log\ M_s
+\end{equation}
+
 Here, for each possible value $g$ taken by the biological condition of interest, $x_{sg}$ is the binary vector indicating the condition value applied to sample $s$. $\beta_{ng}$ is the regression coefficient by which the covariate effects are mediated for neighbourhood $n$, that represents the log fold-change between number of cells in condition $g$ and all other conditions. If the biological condition of interest is ordinal (such as age or disease-severity) $\beta_{ng}$ is interpreted as the per-unit linear change in neighbourhood abundance.
 
 Estimation of $\beta_{ng}$ for each $n$ and $g$ is performed by fitting the GLM to the count data for each neighbourhood, i.e. by estimating the dispersion $\phi_{n}$ that models the variability of cell counts for replicate samples for each neighbourhood. Dispersion estimation is performed using the quasi-likelihood method in `edgeR`[@robinsonEdgeRBioconductorPackage2010a], where the dispersion is modelled from the GLM deviance and thereby stabilized with empirical Bayes shrinkage, to stabilize the estimates in the presence of limited replication.
+
+#### Count model normalisation and compositional biases {-}
+
+In equation (\ref{eq:1}) above the $\mbox{log}\ M_s$ term is provided as an offset to the NB GLM which effectively normalises the cell counts in 
+each neighbourhood by the total number of cells in each sample $S$, thus accounting for variation in cell numbers across samples. If there is a 
+single strong region of differential abundance then the counts for these samples will increase, which can negatively bias the model log fold-change 
+estimates. This results in an underestimate of the true log fold-changes and the appearance of false discoveries in the opposite direction to the 
+true DA effect direction. This compositional effect arises due to the finite sampling of cells without saturation, such that as the counts for one 
+region increase it drives down the counts for all other neighbourhoods generating false-positive differential abundance. To address this issue we 
+turn to the RNA-seq literature, specifically the trimmed mean of M-values (TMM) method for estimating normalisation factors that 
+are robust to such compositional differences across samples [@robinsonTMM2010]. Under the assumption that the majority of neighbourhoods are 
+not differentially abundant, the TMM approach first computes the per-neighbourhood log count ratios for a pair of samples $s$ and $s'$ 
+(M values):
+
+$$ 
+M_{n} = \mbox{log} \frac{Y_{ns}/M_s}{Y_{ns'}/M_{s'}}
+$$
+
+And the absolute neighbourhood abundance (A values):
+
+$$
+A_{n} = \frac{1}{2}\ \mbox{log}_{2} (Y_{ns}/M_{s} \cdot Y_{ns'}/M_{s'}),\ \mbox{for}\ Y_{n} \neq 0
+$$
+
+Both the M and A distribution tails are trimmed (30% for M, 5% for A by default) before taking a weighted average over neighbourhoods using precision weights, 
+computed as the inverse variance of the neighbourhood counts, to account for the fact that more abundant neighbourhoods have a lower variance on a 
+log scale. Thus, the normalisation factors are computed, with respect to a reference sample, $r$:
+
+$$
+
+\mbox{log}_2(TMM_{s}^{(r)})= \frac{\sum_{n \in N} w^r_{ns}M^r_{ns}}{\sum_{n \in N} w^r_{ns}}
+
+$$
+
+where, $M^r_{ns}$ is computed as above for samples $s$ and $r$, and:
+
+$$
+w^r_{ns} = \frac{M_s-Y_{ns}}{M_sY_{ns}} + \frac{M_r-Y_{nr}}{M_rY_{nr}}
+$$
+
+In practice, $M_r$ and $Y_{ns}$ are computed from the sample with the counts per million upper quartile that is closest to the mean upper quartile across samples.
 
 #### Adaptation of Spatial FDR to neighbourhoods {-}
 
@@ -119,6 +162,7 @@ Where the weight $w_{(i)}$ is the reciprocal of the neighbourhood connectivity $
 In this section we provide practical guidelines to select default parameters for KNN graph and neighbourhood construction for DA analysis with Milo. We recognize that DA analysis will also be impacted by choices made during feature selection and dimensionality reduction. However these depend strongly on the nature of the single-cell dataset used as input. For example feature selection strategies suitable for UMI-based scRNA-seq data might be suboptimal for data generated with non-UMI protocols, or dimensionality reduction methods alternative to PCA might be used for single-cell epigenomics data. We point the reader to existing resources and heuristics for the application to scRNA-seq in section \@ref(pp).
 
 #### Selecting the number of nearest neighbors $K$ {-}
+
 For construction of the KNN graph and neighbourhoods, the user has to select the number of nearest neighbors $K$ to use for graph construction.
 The choice of $K$ influences the distribution of cell counts within neighbourhoods, as $K$ represents the lower limit in the number of cells in each neighbourhood ($\sum(y_{n,s})$). Hence, if $K$ is too small the neighbourhoods might not contain enough cells to detect differential abundance. In order to perform DA testing with sufficient statistical power, the analyst should consider the number of experimental samples $S$ (that will correspond to the columns in the count matrix for DA testing) and the desired minimum number of cells per neighbourhood and experimental sample. For example, having on average 5 cells per sample in each neighbourhood allows to detect n fold changes between 2 experimental conditions.
 <!-- In order to have enough statistical power to detect n fold differences in abundance neighbourhoods should contain on average n cells per experimental sample.  -->
@@ -129,16 +173,22 @@ $$
 $$
 Therefore a conservative approach to minimize false positives is to select $K \geq S \times$ 3-5. 
 
-On the other hand increasing $K$ increases power, but can come at the cost of FDR control, as we illustrate by testing for DA with increasing values for $K$ in the mouse gastrulation dataset with synthetic condition labels on 4 different populations (Suppl.Fig....A). We recommend to inspect the histogram of neighbourhood sizes after sampling of neighbourhoods (Suppl.Fig....B) and to consider what is the number of cells that would be considered a "neighbourhood" in the dataset at hand. Depending on the expected lower-limit of the size of rare sub-populations, the mean neighbourhood size should be no more than 10% of this value. We provide the utility function `plotNhoodSizeHist` to visualize the neighbourhood size distribution as part of our R package.
+On the other hand increasing $K$ increases power, but can come at the cost of FDR control, as we illustrate by testing for DA with increasing values for $K$ in 
+the mouse gastrulation dataset with synthetic condition labels on 4 different populations (Suppl.Fig....A). We recommend users to inspect the histogram of 
+neighbourhood sizes after sampling of neighbourhoods (Suppl.Fig....B) and to consider the number of cells that would be considered a "neighbourhood" in the 
+dataset at hand. As a heuristic for selecting a lower bound on $K$ to increase the resolution of neighbourhoods for capturing rare sub-populations or states, 
+the user can select $K$ such that the mean neighbourhood size is no more than 10% of the expected size of the rare population. We provide the utility function 
+`plotNhoodSizeHist` to visualize the neighbourhood size distribution as part of our R package.
 
 #### Selecting the proportions of cells sampled as neighbourhood indices $p$ {-}
+
 The proportion of cells sampled for search of neighbourhood indices can affect the total number of neighbourhoods used for analysis, but this number will converge for high proportions thanks to the sampling refinement step described in section \@ref(nh) (Suppl.Fig. 1A). In practice, we recommend initiating neighbourhood search with $p=0.05$ for datasets with more than 100k cells and $p=0.1$ otherwise, which we have found to give appropriate coverage across the KNN graph while reducing the computational and multiple-testing burden. We recommend increasing $p > 0.1$ only if the dataset appears to contain rare disconnected subpopulations. 
 
-## On compositional biases 
+<!-- ## On compositional biases  -->
 
-A common problem faced by statistical methods detecting shifts in abundance in single-cell datasets is to account for compositional biases: because the total number of cells per sample is relatively small, an increase in cell abundance in a single cell population can lead to an to a reduction in the number of cells in other populations. Therefore a statistical model that tests for changes in abundance _indipendently_ for different cell populations might detect false DA simply because of shifts affecting a different population. The challenge of compositional dependencies has been addressed in the field of microbiome analysis [refs] and more recently for analysis of cell type shifts in single-cell RNA-seq datasets [@buttnerScCODABayesianModel2020].
+<!-- A common problem faced by statistical methods detecting shifts in abundance in single-cell datasets is to account for compositional biases: because the total number of cells per sample is relatively small, an increase in cell abundance in a single cell population can lead to an to a reduction in the number of cells in other populations. Therefore a statistical model that tests for changes in abundance _indipendently_ for different cell populations might detect false DA simply because of shifts affecting a different population. The challenge of compositional dependencies has been addressed in the field of microbiome analysis [refs] and more recently for analysis of cell type shifts in single-cell RNA-seq datasets [@buttnerScCODABayesianModel2020]. -->
 
-Reassuringly, although _Milo_ does not model the compositional dependencies explicitly, we do not observe any of such biases across our benchmarking datasets: here we introduce a synthetic enrichment in one of two conditions, but we do not detect false depletion in other non-DA regions of the graph. We speculate that this problem is alleviated by performing tests over a large number of neighbourhoods (in the order of thousands)  
+<!-- Reassuringly, although _Milo_ does not model the compositional dependencies explicitly, we do not observe any of such biases across our benchmarking datasets: here we introduce a synthetic enrichment in one of two conditions, but we do not detect false depletion in other non-DA regions of the graph. We speculate that this problem is alleviated by performing tests over a large number of neighbourhoods (in the order of thousands)   -->
 
 
 
@@ -151,6 +201,39 @@ Reassuringly, although _Milo_ does not model the compositional dependencies expl
 
 <!-- Taken together these results illustrate that while _Milo_ can be used to robustly account for batch effects during DA testing, optimal results are achieved after the removal of major batch effects that are not readily accounted for by inclusion as a covariate in a linear model. -->
 
+## Notes on experimental design
+
+Of key consideration when designing any single-cell experiment is how the sample collection relates to the biological variables of interest, and how these samples 
+are processed and experiments are performed. Moreover, the experimenter (& analyst together), should design their experiment to minimise the impact of confounding 
+effects on differential abundance testing, and incorporate appropriate replication to acheive enough power to detect the expected effect size for their 
+experiment.
+
+#### Statistical power considerations {-}
+
+Increases in statistical power can be achieved by several means: (1) Increased cell numbers in neighbourhoods and (2) higher signal-to-noise ratio. The first can 
+be achieved by collecting more cells for each sample, increasing $K$ during graph building such that neighbourhoods are on average larger, and by increasing the 
+number of replicate samples. Collecting more cells gives a greater coverage of the cell-to-cell heterogeneity and different cell states/types, including increased 
+detection for rarer sub-populations. Increasing $K$ increases power by constructing larger neighbourhoods, however, this increase in power comes at a cost of 
+reduced sensitivity for rarer sub-populations and an increased false discovery rate (Suppl Fig...). Designing an experiment with more replicate samples has 
+multiple benefits in terms of increasing statistical testing power, increasing the signal-to-noise ratio, and increasing the accuracy of effect size estimates 
+(Suppl Fig ...). Therefore, in order of their impact on power and differential abundance testing, we would recommend: (1) collecting more replicate samples, with 
+a minimum of n=3, (2) collecting more cells per sample, (3) increasing $K$ to generate larger neighbourhoods. We would like to stress that choosing (3) should not 
+be used to justify not considering either (1) or (2), and is way to increase power post sample collection, at a price.
+
+#### Batch effects and experimental design {-}
+
+Proper experimental design is crucial for answering scientific questions, particularly in the presence of confounding effects. In single-cell experiments these 
+can range from batch effects introduced between samples processed on different days, owing to logistical constraint or sample availability, to biological sample 
+collections from a heterogenous population; the latter being particularly apparent for non-model organisms.
+
+In the context of differential abundance testing with Milo, we recommend designing experimental procedures and sample processing such that samples from different 
+conditions are randomised across batches. One example is to pair samples between conditions, such that during batch effect removal the variability between these 
+pairs of samples is minimally removed. This will help to facilitate removal of technical batch effects, whilst retaining the relevant biological variability.  
+As described above, the exact choice of batch integration method should be carefully considered before applying Milo, with a preference for methods that generate 
+a batch-integrated space (either reduced dimensions or gene expression). The keypoint is that sample processing and experimental batches are not perfectly 
+confounded with the biological variable of interest. We expect _some_ technical variability to remain (no batch integration is perfect), which can be handled in 
+Milo's GLM framework by including the batch identity as a blocking factor in the design model. Examples of this correction are shown in the benchmarking in 
+Figure ... and Suppl Fig ...
 
 # References
 
