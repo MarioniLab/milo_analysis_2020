@@ -134,9 +134,7 @@ computed as the inverse variance of the neighbourhood counts, to account for the
 log scale. Thus, the normalisation factors are computed, with respect to a reference sample, $r$:
 
 $$
-
 \mbox{log}_2(TMM_{s}^{(r)})= \frac{\sum_{n \in N} w^r_{ns}M^r_{ns}}{\sum_{n \in N} w^r_{ns}}
-
 $$
 
 where, $M^r_{ns}$ is computed as above for samples $s$ and $r$, and:
@@ -204,7 +202,7 @@ The proportion of cells sampled for search of neighbourhood indices can affect t
 ## Notes on experimental design
 
 Of key consideration when designing any single-cell experiment is how the sample collection relates to the biological variables of interest, and how these samples 
-are processed and experiments are performed. Moreover, the experimenter (& analyst together), should design their experiment to minimise the impact of confounding 
+are processed and experiments are performed. Moreover, the experimenter (and analyst together), should design their experiment to minimise the impact of confounding 
 effects on differential abundance testing, and incorporate appropriate replication to acheive enough power to detect the expected effect size for their 
 experiment.
 
