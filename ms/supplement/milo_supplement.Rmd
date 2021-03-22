@@ -143,7 +143,7 @@ $$
 w^r_{ns} = \frac{M_s-Y_{ns}}{M_sY_{ns}} + \frac{M_r-Y_{nr}}{M_rY_{nr}}
 $$
 
-In practice, $M_r$ and $Y_{ns}$ are computed from the sample with the counts per million upper quartile that is closest to the mean upper quartile across samples.
+In practice, $M_r$ and $Y_{nr}$ are computed from the sample with the counts per million upper quartile that is closest to the mean upper quartile across samples.
 
 #### Adaptation of Spatial FDR to neighbourhoods {-}
 
@@ -216,13 +216,13 @@ reduced sensitivity for rarer sub-populations and an increased false discovery r
 multiple benefits in terms of increasing statistical testing power, increasing the signal-to-noise ratio, and increasing the accuracy of effect size estimates 
 (Suppl Fig ...). Therefore, in order of their impact on power and differential abundance testing, we would recommend: (1) collecting more replicate samples, with 
 a minimum of n=3, (2) collecting more cells per sample, (3) increasing $K$ to generate larger neighbourhoods. We would like to stress that choosing (3) should not 
-be used to justify not considering either (1) or (2), and is way to increase power post sample collection, at a price.
+be used to justify not considering either (1) or (2), and is a way to increase power post sample collection, at a price.
 
 #### Batch effects and experimental design {-}
 
 Proper experimental design is crucial for answering scientific questions, particularly in the presence of confounding effects. In single-cell experiments these 
-can range from batch effects introduced between samples processed on different days, owing to logistical constraint or sample availability, to biological sample 
-collections from a heterogenous population; the latter being particularly apparent for non-model organisms.
+can range from batch effects introduced between samples processed on different days, owing to logistical constraints or sample availability, to biological sample 
+collections from a heterogenous population; the latter being particularly apparent for genetically diverse non-model organisms.
 
 In the context of differential abundance testing with Milo, we recommend designing experimental procedures and sample processing such that samples from different 
 conditions are randomised across batches. One example is to pair samples between conditions, such that during batch effect removal the variability between these 
