@@ -4,8 +4,8 @@
 %
 \documentclass[
 ]{article}
+\usepackage{amsmath,amssymb}
 \usepackage{lmodern}
-\usepackage{amssymb,amsmath}
 \usepackage{ifxetex,ifluatex}
 \ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
   \usepackage[T1]{fontenc}
@@ -42,7 +42,8 @@
   pdfcreator={LaTeX via pandoc}}
 \urlstyle{same} % disable monospaced font for URLs
 \usepackage[margin=1in]{geometry}
-\usepackage{longtable,booktabs}
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
 % Correct order of tables after \paragraph or \subparagraph
 \usepackage{etoolbox}
 \makeatletter
@@ -76,14 +77,29 @@
 \fi
 \newlength{\cslhangindent}
 \setlength{\cslhangindent}{1.5em}
-\newenvironment{cslreferences}%
-  {}%
-  {\par}
+\newlength{\csllabelwidth}
+\setlength{\csllabelwidth}{3em}
+\newenvironment{CSLReferences}[2] % #1 hanging-ident, #2 entry spacing
+ {% don't indent paragraphs
+  \setlength{\parindent}{0pt}
+  % turn on hanging indent if param 1 is 1
+  \ifodd #1 \everypar{\setlength{\hangindent}{\cslhangindent}}\ignorespaces\fi
+  % set entry spacing
+  \ifnum #2 > 0
+  \setlength{\parskip}{#2\baselineskip}
+  \fi
+ }%
+ {}
+\usepackage{calc}
+\newcommand{\CSLBlock}[1]{#1\hfill\break}
+\newcommand{\CSLLeftMargin}[1]{\parbox[t]{\csllabelwidth}{#1}}
+\newcommand{\CSLRightInline}[1]{\parbox[t]{\linewidth - \csllabelwidth}{#1}\break}
+\newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
 
 \title{Supplementary information for
 \textbf{Differential cell-state abundance testing using KNN graphs with \emph{Milo}}}
 \author{Emma Dann, \and Neil C. Henderson, \and Sarah A. Teichmann, \and Michael D. Morgan, \and John C. Marioni}
-\date{21 March, 2021}
+\date{23 March, 2021}
 
 \begin{document}
 \maketitle
@@ -212,7 +228,7 @@ where, \(M^r_{ns}\) is computed as above for samples \(s\) and \(r\), and:
 w^r_{ns} = \frac{M_s-Y_{ns}}{M_sY_{ns}} + \frac{M_r-Y_{nr}}{M_rY_{nr}}
 \]
 
-In practice, \(M_r\) and \(Y_{ns}\) are computed from the sample with the counts per million upper quartile that is closest to the mean upper quartile across samples.
+In practice, \(M_r\) and \(Y_{nr}\) are computed from the sample with the counts per million upper quartile that is closest to the mean upper quartile across samples.
 
 \hypertarget{adaptation-of-spatial-fdr-to-neighbourhoods}{%
 \paragraph*{Adaptation of Spatial FDR to neighbourhoods}\label{adaptation-of-spatial-fdr-to-neighbourhoods}}
@@ -277,15 +293,15 @@ reduced sensitivity for rarer sub-populations and an increased false discovery r
 multiple benefits in terms of increasing statistical testing power, increasing the signal-to-noise ratio, and increasing the accuracy of effect size estimates
 (Suppl Fig \ldots). Therefore, in order of their impact on power and differential abundance testing, we would recommend: (1) collecting more replicate samples, with
 a minimum of n=3, (2) collecting more cells per sample, (3) increasing \(K\) to generate larger neighbourhoods. We would like to stress that choosing (3) should not
-be used to justify not considering either (1) or (2), and is way to increase power post sample collection, at a price.
+be used to justify not considering either (1) or (2), and is a way to increase power post sample collection, at a price.
 
 \hypertarget{batch-effects-and-experimental-design}{%
 \paragraph*{Batch effects and experimental design}\label{batch-effects-and-experimental-design}}
 \addcontentsline{toc}{paragraph}{Batch effects and experimental design}
 
 Proper experimental design is crucial for answering scientific questions, particularly in the presence of confounding effects. In single-cell experiments these
-can range from batch effects introduced between samples processed on different days, owing to logistical constraint or sample availability, to biological sample
-collections from a heterogenous population; the latter being particularly apparent for non-model organisms.
+can range from batch effects introduced between samples processed on different days, owing to logistical constraints or sample availability, to biological sample
+collections from a heterogenous population; the latter being particularly apparent for genetically diverse non-model organisms.
 
 In the context of differential abundance testing with Milo, we recommend designing experimental procedures and sample processing such that samples from different
 conditions are randomised across batches. One example is to pair samples between conditions, such that during batch effect removal the variability between these
@@ -301,45 +317,59 @@ Figure \ldots{} and Suppl Fig \ldots{}
 \addcontentsline{toc}{section}{References}
 
 \hypertarget{refs}{}
-\begin{cslreferences}
+\begin{CSLReferences}{0}{0}
 \leavevmode\hypertarget{ref-lueckenCurrentBestPractices2019}{}%
-1. Luecken, M.D., and Theis, F.J. (2019). Current best practices in single-cell RNA-seq analysis: A tutorial. Molecular Systems Biology \emph{15}, e8746.
+\CSLLeftMargin{1. }
+\CSLRightInline{Luecken, M.D., and Theis, F.J. (2019). Current best practices in single-cell {RNA}-seq analysis: A tutorial. Molecular Systems Biology \emph{15}, e8746.}
 
 \leavevmode\hypertarget{ref-amezquitaOrchestratingSinglecellAnalysis2020}{}%
-2. Amezquita, R.A., Lun, A.T.L., Becht, E., Carey, V.J., Carpp, L.N., Geistlinger, L., Marini, F., Rue-Albrecht, K., Risso, D., and Soneson, C. \emph{et al.} (2020). Orchestrating single-cell analysis with Bioconductor. Nature Methods \emph{17}, 137--145.
+\CSLLeftMargin{2. }
+\CSLRightInline{Amezquita, R.A., Lun, A.T.L., Becht, E., Carey, V.J., Carpp, L.N., Geistlinger, L., Marini, F., Rue-Albrecht, K., Risso, D., Soneson, C., \emph{et al.} (2020). Orchestrating single-cell analysis with {Bioconductor}. Nature Methods \emph{17}, 137--145.}
 
 \leavevmode\hypertarget{ref-chungStatisticalSignificanceVariables2015}{}%
-3. Chung, N.C., and Storey, J.D. (2015). Statistical significance of variables driving systematic variation in high-dimensional data. Bioinformatics \emph{31}, 545--554.
+\CSLLeftMargin{3. }
+\CSLRightInline{Chung, N.C., and Storey, J.D. (2015). Statistical significance of variables driving systematic variation in high-dimensional data. Bioinformatics \emph{31}, 545--554.}
 
 \leavevmode\hypertarget{ref-lueckenBenchmarkingAtlaslevelData2020}{}%
-4. Luecken, M.D., Büttner, M., Chaichoompu, K., Danese, A., Interlandi, M., Mueller, M.F., Strobl, D.C., Zappia, L., Dugas, M., and Colomé-Tatché, M. \emph{et al.} (2020). Benchmarking atlas-level data integration in single-cell genomics. bioRxiv, 2020.05.22.111161.
+\CSLLeftMargin{4. }
+\CSLRightInline{Luecken, M.D., Büttner, M., Chaichoompu, K., Danese, A., Interlandi, M., Mueller, M.F., Strobl, D.C., Zappia, L., Dugas, M., Colomé-Tatché, M., \emph{et al.} (2020). Benchmarking atlas-level data integration in single-cell genomics. bioRxiv, 2020.05.22.111161.}
 
 \leavevmode\hypertarget{ref-chazarra-gilFlexibleComparisonBatch2020}{}%
-5. Chazarra-Gil, R., Dongen, S. van, Kiselev, V.Y., and Hemberg, M. (2020). Flexible comparison of batch correction methods for single-cell RNA-seq using BatchBench. bioRxiv, 2020.05.22.111211.
+\CSLLeftMargin{5. }
+\CSLRightInline{Chazarra-Gil, R., Dongen, S. van, Kiselev, V.Y., and Hemberg, M. (2020). Flexible comparison of batch correction methods for single-cell {RNA}-seq using {BatchBench}. bioRxiv, 2020.05.22.111211.}
 
 \leavevmode\hypertarget{ref-tranBenchmarkBatcheffectCorrection2020}{}%
-6. Tran, H.T.N., Ang, K.S., Chevrier, M., Zhang, X., Lee, N.Y.S., Goh, M., and Chen, J. (2020). A benchmark of batch-effect correction methods for single-cell RNA sequencing data. Genome Biology \emph{21}, 12.
+\CSLLeftMargin{6. }
+\CSLRightInline{Tran, H.T.N., Ang, K.S., Chevrier, M., Zhang, X., Lee, N.Y.S., Goh, M., and Chen, J. (2020). A benchmark of batch-effect correction methods for single-cell {RNA} sequencing data. Genome Biology \emph{21}, 12.}
 
 \leavevmode\hypertarget{ref-polanskiBBKNNFastBatch}{}%
-7. Polański, K., Young, M.D., Miao, Z., Meyer, K.B., Teichmann, S.A., and Park, J.-E. BBKNN: Fast batch alignment of single cell transcriptomes. Bioinformatics.
+\CSLLeftMargin{7. }
+\CSLRightInline{Polański, K., Young, M.D., Miao, Z., Meyer, K.B., Teichmann, S.A., and Park, J.-E. {BBKNN}: Fast batch alignment of single cell transcriptomes. Bioinformatics.}
 
 \leavevmode\hypertarget{ref-barkasJointAnalysisHeterogeneous2019}{}%
-8. Barkas, N., Petukhov, V., Nikolaeva, D., Lozinsky, Y., Demharter, S., Khodosevich, K., and Kharchenko, P.V. (2019). Joint analysis of heterogeneous single-cell RNA-seq dataset collections. Nat Methods \emph{16}, 695--698.
+\CSLLeftMargin{8. }
+\CSLRightInline{Barkas, N., Petukhov, V., Nikolaeva, D., Lozinsky, Y., Demharter, S., Khodosevich, K., and Kharchenko, P.V. (2019). Joint analysis of heterogeneous single-cell {RNA}-seq dataset collections. Nat Methods \emph{16}, 695--698.}
 
 \leavevmode\hypertarget{ref-gutTrajectoriesCellcycleProgression2015}{}%
-9. Gut, G., Tadmor, M.D., Pe'er, D., Pelkmans, L., and Liberali, P. (2015). Trajectories of cell-cycle progression from fixed cell populations. Nature Methods \emph{12}, 951--954.
+\CSLLeftMargin{9. }
+\CSLRightInline{Gut, G., Tadmor, M.D., Pe'er, D., Pelkmans, L., and Liberali, P. (2015). Trajectories of cell-cycle progression from fixed cell populations. Nature Methods \emph{12}, 951--954.}
 
 \leavevmode\hypertarget{ref-settyWishboneIdentifiesBifurcating2016}{}%
-10. Setty, M., Tadmor, M.D., Reich-Zeliger, S., Angel, O., Salame, T.M., Kathail, P., Choi, K., Bendall, S., Friedman, N., and Pe'er, D. (2016). Wishbone identifies bifurcating developmental trajectories from single-cell data. Nature Biotechnology \emph{34}, 637--645.
+\CSLLeftMargin{10. }
+\CSLRightInline{Setty, M., Tadmor, M.D., Reich-Zeliger, S., Angel, O., Salame, T.M., Kathail, P., Choi, K., Bendall, S., Friedman, N., and Pe'er, D. (2016). Wishbone identifies bifurcating developmental trajectories from single-cell data. Nature Biotechnology \emph{34}, 637--645.}
 
 \leavevmode\hypertarget{ref-lunTestingDifferentialAbundance2017}{}%
-11. Lun, A.T.L., Richard, A.C., and Marioni, J.C. (2017). Testing for differential abundance in mass cytometry data. Nature Methods \emph{14}, 707--709.
+\CSLLeftMargin{11. }
+\CSLRightInline{Lun, A.T.L., Richard, A.C., and Marioni, J.C. (2017). Testing for differential abundance in mass cytometry data. Nature Methods \emph{14}, 707--709.}
 
 \leavevmode\hypertarget{ref-robinsonEdgeRBioconductorPackage2010a}{}%
-12. Robinson, M.D., McCarthy, D.J., and Smyth, G.K. (2010). edgeR: A Bioconductor package for differential expression analysis of digital gene expression data. Bioinformatics \emph{26}, 139--140.
+\CSLLeftMargin{12. }
+\CSLRightInline{Robinson, M.D., McCarthy, D.J., and Smyth, G.K. (2010). {edgeR}: A {Bioconductor} package for differential expression analysis of digital gene expression data. Bioinformatics \emph{26}, 139--140.}
 
 \leavevmode\hypertarget{ref-robinsonTMM2010}{}%
-13. Robinson, M.D., and Oshlack, A. (2010). A scaling normalization method for differential expression analysis of RNA-seq data. Genome Biology \emph{11}, R25. Available at: \url{http://genomebiology.biomedcentral.com/articles/10.1186/gb-2010-11-3-r25} {[}Accessed March 18, 2021{]}.
-\end{cslreferences}
+\CSLLeftMargin{13. }
+\CSLRightInline{Robinson, M.D., and Oshlack, A. (2010). A scaling normalization method for differential expression analysis of {RNA}-seq data. Genome Biology \emph{11}, R25. Available at: \url{http://genomebiology.biomedcentral.com/articles/10.1186/gb-2010-11-3-r25} {[}Accessed March 18, 2021{]}.}
+
+\end{CSLReferences}
 
 \end{document}

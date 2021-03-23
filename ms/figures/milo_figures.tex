@@ -5,8 +5,8 @@
 \documentclass[
   10pt,
 ]{article}
+\usepackage{amsmath,amssymb}
 \usepackage{lmodern}
-\usepackage{amssymb,amsmath}
 \usepackage{ifxetex,ifluatex}
 \ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
   \usepackage[T1]{fontenc}
@@ -41,7 +41,8 @@
   pdfcreator={LaTeX via pandoc}}
 \urlstyle{same} % disable monospaced font for URLs
 \usepackage[margin=1cm]{geometry}
-\usepackage{longtable,booktabs}
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
 % Correct order of tables after \paragraph or \subparagraph
 \usepackage{etoolbox}
 \makeatletter
@@ -105,15 +106,11 @@ A graph representation of the results from Milo differential abundance testing. 
 \begin{figure}
 \centering
 \includegraphics{figs/fig_benchmark.pdf}
-\caption{\label{fig:fig-2}\textbf{Milo outperforms alternative DA testing approaches and controls for false discoveries in the presence of batch effects.}
-(A) Schematic of the strategy used to simulate ground truth regions of differential abundance: on a KNN graph from real or simulated single-cell profiles (1) we generate a smooth probability for each single-cell to be in Condition 1 (C1) (2) and use it to assign condition labels to cells (3). Cells in each condition are randomly split into 3 synthetic replicates for testing.
-(B) A table describing the different methods compared to Milo, along with the input, key parameters and an overview of the testing framework for each.
-(C) True Positive Rate (TPR, left) and False Discovery Rate (FDR, right) for recovery of cells in simulated DA regions for DA populations of increasing size on the mouse gastrulation dataset. For each population, results from 3 condition simulations are shown. Trend lines from local polynomial regression are shown, with 95\% confidence interval. The Pearson's correlation coefficient and p-value for permutation test is shown. Each panel represents a different DA effect size (Max C1 probability).
-(D) Example UMAP visualization of simulated batch effects of increasing magnitude.
-(E) Mean True Positive Rate (left) and False Discovery Rate (right) for recovery of cells in simulated DA regions with simulated batch effects of increasing magnitude. The mean is calculated over 27 simulations on 9 populations. Line shading indicates the standard deviation of the mean. The batch covariate is included in the test design for GLM based methods (\textasciitilde{} batch + condition). Each panel represents a different DA effect size (Max C1 probability).}
+\caption{\label{fig:fig-2}\textbf{Milo outperforms alternative DA testing approaches and controls for false discoveries in the presence of batch effects.} (A) Schematic of the strategy used to simulate ground truth regions of differential abundance: on a KNN graph from real or simulated single-cell profiles (1) we generate a smooth probability for each single-cell to be in Condition 1 (2) and use it to assign condition labels to cells (3). Cells in each condition are randomly split into 3 synthetic replicates for testing.
+(B) A table outlining the characteristics of the methods compared to Milo.
+(C) True Positive Rate (TPR, top) and False Discovery Rate (FDR, bottom) for recovery of cells in simulated DA regions for DA populations with increasing simulated Fold-Change on the mouse gastrulation dataset. For each boxplot, results from 8 populations and 3 condition simulations per population are shown. Each panel represents a different DA method. (D) Example UMAP visualization of simulated batch effects of increasing magnitude.
+(E) True Positive Rate (TPR, top) and False Discovery Rate (FDR, bottom) for recovery of cells in simulated DA regions for DA populations with simulated batch effects of increasing magnitude. For each boxplot, results from 8 populations, simulated fold change \textgreater{} 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot). Each panel represents a different DA method. The batch covariate is included in the test design for GLM based methods (\textasciitilde{} batch + condition).}
 \end{figure}
-
-
 
 
 
@@ -157,7 +154,7 @@ A graph representation of the results from Milo differential abundance testing. 
 \begin{figure}[ht]
 \includegraphics[width=500px]{figs/fig_liver} \caption{\textbf{Milo identifies the compositional disorder in cirrhotic liver}
 (A-B) UMAP embedding of 58358 cells from healthy (n = 5) and cirrhotic (n = 5) human livers. Cells are colored by cellular lineage (A) and injury condition (B)
-(C) Graph representation of neighbourhoods identified by Milo. Nodes are neighbourhoods, coloured by their log fold change between cirrhotic and healthy samples. Non-DA neighbourhoods (FDR 10\%) are coloured white, and sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods. The layout of nodes is determined by the position of the neighbourhood index cell in the UMAP embedding of single cells. (D) Beeswarm plot showing the distribution of log-fold change in abundance between conditions in neighbourhoods from different cell type clusters. DA neighbourhoods at FDR 10\% are coloured. Cell types detected as DA through clustering by Ramachandran et al.~(2019) are annotated in the left side bar. (E-F) UMAP embedding and graph representation of neighbourhoods of 7995 cells from endothelial lineage, coloured by DA log-fold change (E) and grouping used for DGE testing (F) (G) Heatmap showing average neighbourhood expression of genes differentially expressed between DA neighbourhoods in the endothelial lineage (572 genes). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.}\label{fig:fig-5}
+(C) Graph representation of neighbourhoods identified by Milo. Nodes are neighbourhoods, coloured by their log fold change between cirrhotic and healthy samples. Non-DA neighbourhoods (FDR 10\%) are coloured white, and sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods. The layout of nodes is determined by the position of the neighbourhood index cell in the UMAP embedding of single cells. (D) Beeswarm plot showing the distribution of log-fold change in abundance between conditions in neighbourhoods from different cell type clusters. DA neighbourhoods at FDR 10\% are coloured. Cell types detected as DA through clustering by Ramachandran et al.~(2019) are annotated in the left side bar. (E-F) UMAP embedding and graph representation of neighbourhoods of 7995 cells from endothelial lineage, coloured by DA log-fold change (E) and grouping used for DGE testing (F) (G) Heatmap showing average neighbourhood expression of genes differentially expressed between DA neighbourhoods in the endothelial lineage (788 genes). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.}\label{fig:fig-5}
 \end{figure}
 
 
