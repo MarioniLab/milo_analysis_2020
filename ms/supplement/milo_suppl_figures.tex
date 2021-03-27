@@ -92,7 +92,7 @@
 \includegraphics[width=500px]{suppl_figs/suppl_fig_refined} \caption{\textbf{Random sampling of KNN graph vertices is suboptimal compared to sampling with refinement.}
 (A) Sampling with refinement leads to selection of fewer neighbourhoods
 (B) Sampling with refinement leads to selection of bigger neighbourhoods for DA testing, independently of the initial proportion of cells sampled
-(C) Sampling with refinement generates robust neighbourhoods across initializations: for each index cell we calculate the distance from the closest index in a sampling with different initialization. The cumulative distribution of distances to the closest index is shown. The black dotted line denotes the distribution of distances between K nearest neighbors in the dataset (K=30) (NH: neighbourhood).
+(C) Sampling with refinement generates robust neighbourhoods across initializations: for each index cell we calculate the distance from the closest index in a sampling with different initialization. The cumulative distribution of distances to the closest index is shown. The black dotted line denotes the distribution of distances between K nearest neighbours in the dataset (K=30) (NH: neighbourhood).
 Neighbourhood statistics were calculated using a simulated trajectory dataset of 5000 cells. All plots show results from three sampling initializations for each proportion.}\label{fig:sup-fig-refined}
 \end{figure}
 
@@ -109,7 +109,7 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 (A) A simulated linear trajectory of 2000 single-cells generated from 5 different groups, with cells assigned to either condition `A' (left) or condition `B' (right).
 (B) A Walktrap clustering of the data in (A) using the same KNN graph. Cells are coloured by Walktrap cluster identity.
 (C) A Louvain clustering of the data in (A) using the same KNN graph. Cells are coloured by the Louvain clustering identity.
-(D-E) Heatmaps comparing the numbers of cells in each cluster with respect to the ground truth groups in (A). Each cell is coloured by the proportion of cells from the column groups (ground truth) that are assigned to the respective cluster.}
+(D-E) Heatmaps comparing the numbers of cells in each cluster with respect to the ground truth groups in (A). Each entry in the heatmap is coloured by the proportion of cells from the column groups (ground truth) that are assigned to the respective cluster.}
 \end{figure}
 
 
@@ -133,19 +133,19 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 
 \begin{figure}
-\includegraphics[width=500px]{suppl_figs/suppl_fig_signal2noise} \caption{\textbf{Variability in Milo power is explained by the fraction of true positive cells close to DA threshold} example distributions of underlying probability of Condition1 (P(C1)) for cells detected as True Positives (TP) or False Negatives (FN) by Milo. Examples for simulations on 2 populations (rows) and 3 simulated fold changes (columns) are shown.}\label{fig:sup-fig-bm-signal}
+\includegraphics[width=500px]{suppl_figs/suppl_fig_signal2noise} \caption{\textbf{Variability in Milo power is explained by the fraction of true positive cells close to DA threshold.} Example distributions of underlying probability of Condition 1 (P(C1)) for cells detected as True Positives (TP) or False Negatives (FN) by Milo. Examples for simulations on 2 populations (rows) and 3 simulated fold changes (columns) are shown.}\label{fig:sup-fig-bm-signal}
 \end{figure}
 
 
 
 \begin{figure}
-\includegraphics[width=500px]{suppl_figs/suppl_fig_bm_size} \caption{\textbf{DA testing power increases with the size of the DA population} True Positive Rate (TPR) of DA detection for simulated DA regions of increasing size centered at the same centroid (Erythroid2 (A) and Caudal neuroectoderm (B)). Results for 3 condition simulations per population and fold change are shown.}\label{fig:sup-fig-bm-size}
+\includegraphics[width=500px]{suppl_figs/suppl_fig_bm_size} \caption{\textbf{DA testing power increases with the size of the DA population.} True Positive Rate (TPR) of DA detection for simulated DA regions of increasing size centred at the same centroid (Erythroid2 (A) and Caudal neuroectoderm (B)). Results for 3 condition simulations per population and fold change are shown.}\label{fig:sup-fig-bm-size}
 \end{figure}
 
 
 
 \begin{figure}
-\includegraphics[width=500px]{suppl_figs/suppl_fig_meldVSmilo} \caption{\textbf{Comparison of Milo and MELD for abundance fold-change estimation.} (A-D) Scatter-plots of the true fold-change at the neighbourhood index against the fold-change estimated by Milo (A,C) and MELD (B,D), without batch effect (A-B) and with batch effect (magnitude = 0.5) (C-D), where \(LFC = log(p_{c'}/(1 - p_{c'}))\). The neighbourhoods overlapping true DA cells (\(p_{c'}>0.6\)) are highlighted in red. (C-D) Mean Squared Error (MSE) comparison for MELD and Milo for true negative neighbourhood (C) and true positive neighbourhoods (D), with increasing simulated log-Fold Change and magnitude of batch effect.}\label{fig:sup-fig-bm-meld}
+\includegraphics[width=500px]{suppl_figs/suppl_fig_meldVSmilo} \caption{\textbf{Comparison of Milo and MELD for abundance fold-change estimation.} (A-D) Scatter-plots of the true fold-change at the neighbourhood index against the fold-change estimated by Milo (A,C) and MELD (B,D), without batch effect (A-B) and with batch effect (magnitude = 0.5) (C-D), where \(LFC = log(p_{c'}/(1 - p_{c'}))\). The neighbourhoods overlapping true DA cells (\(p_{c'}>0.6\)) are highlighted in red. (E-F) Mean Squared Error (MSE) comparison for MELD and Milo for true negative neighbourhood (E) and true positive neighbourhoods (F), with increasing simulated log-Fold Change and magnitude of batch effect.}\label{fig:sup-fig-bm-meld}
 \end{figure}
 
 
@@ -153,7 +153,7 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 \begin{figure}
 \centering
 \includegraphics{suppl_figs/suppl_fig_MSE-k_vs_replicates.pdf}
-\caption{\label{fig:sup-fig-msek}\textbf{The impact of replication and k selection on effect size estimation variance.} (A) A UMAP of the mouse thymus data with a single simulated DA. Points are single cells coloured by the P(Condition1). (B) Increasing the number of replicates reduces the difference between the true simulated and estimated effect sizes, using the mean squared error (MSE; top panel) and increases the testing true positive rate (TPR; bottom panel). (C) Increasing k marginally reduces the estimation variance (top panel), and has less of an impact on power (bottom panel) compared to increased replication.}
+\caption{\label{fig:sup-fig-msek}\textbf{The impact of replication and k selection on effect size estimation variance.} (A) A UMAP of the mouse thymus data with a single simulated DA. Points are single cells coloured by the P(Condition 1). (B) Increasing the number of replicates reduces the difference between the true simulated and estimated effect sizes, using the mean squared error (MSE; top panel) and increases the testing true positive rate (TPR; bottom panel). (C) Increasing k marginally reduces the estimation variance (top panel), and has less of an impact on power (bottom panel) compared to increased replication.}
 \end{figure}
 
 
@@ -177,14 +177,14 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 \begin{figure}
 \centering
 \includegraphics{suppl_figs/suppl_fig_bm_design.pdf}
-\caption{\label{fig:sup-fig-bm-design}\textbf{Modelling batch effects in DA analysis with Milo.} (B) Comparison of Milo performance with (\textasciitilde{} batch + condition) or without (\textasciitilde{} condition) accounting for the simulated batch in the GLM. For each boxplot, results from 8 populations, simulated fold change \textgreater{} 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot).}
+\caption{\label{fig:sup-fig-bm-design}\textbf{Modelling batch effects in DA analysis with Milo.} Comparison of Milo performance with (\textasciitilde{} batch + condition) or without (\textasciitilde{} condition) accounting for the simulated batch in the GLM. For each boxplot, results from 8 populations, simulated fold change \textgreater{} 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot).}
 \end{figure}
 
 
 
 \begin{figure}
 \includegraphics[width=500px]{suppl_figs/suppl_fig_memory} \caption{\textbf{Memory usage across the Milo analysis workflow.}
-Total memory usage across the steps of the Milo analysis workflow in 4 datasets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey pointed denot down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) KNN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all datasets for graph building and neighbourhood construction (k=30).}\label{fig:sup-fig-scalability}
+Total memory usage across the steps of the Milo analysis workflow in 4 datasets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denote down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) KNN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all datasets for graph building and neighbourhood construction (k=30).}\label{fig:sup-fig-scalability}
 \end{figure}
 
 
@@ -201,7 +201,7 @@ Total memory usage across the steps of the Milo analysis workflow in 4 datasets 
 \begin{figure}
 \centering
 \includegraphics{suppl_figs/suppl_fig_endo.pdf}
-\caption{\label{fig:sup-fig-liver-endo}\textbf{Downstream analysis of disease-specific endothelial subpopulations in liver cirrhosis}
+\caption{\label{fig:sup-fig-liver-endo}\textbf{Downstream analysis of disease-specific endothelial subpopulations in liver cirrhosis.}
 (A) GO term enrichment analysis on marker genes of cirrhosis-enriched endothelia. (B) GO term enrichment analysis on marker genes of healthy-enriched endothelia. The top 30 significant terms are shown.}
 \end{figure}
 
@@ -211,7 +211,7 @@ Total memory usage across the steps of the Milo analysis workflow in 4 datasets 
 \begin{figure}
 \centering
 \includegraphics{suppl_figs/suppl_fig_chol.pdf}
-\caption{\label{fig:sup-fig-liver-chol}\textbf{Downstream analysis of disease-specific cholangiocyte subpopulations in liver cirrhosis}
+\caption{\label{fig:sup-fig-liver-chol}\textbf{Downstream analysis of disease-specific cholangiocyte subpopulations in liver cirrhosis.}
 Downstream analysis of disease-specific cholangiocyte subpopulations in liver cirrhosis
 (A-B) UMAP embedding (A) and graph representation (B) of neighbourhoods of 3369 cells from cholangiocyte lineage.
 (C) Volcano plot for DGE test on cholangiocytes DA subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
@@ -220,24 +220,6 @@ Downstream analysis of disease-specific cholangiocyte subpopulations in liver ci
 
 
 
-
-
-
-
-\begin{figure}
-\centering
-\includegraphics{suppl_figs/suppl_fig_krobustness.pdf}
-\caption{\label{fig:sup-fig-robustness}\textbf{Robustness of Milo DA testing to varying K}. Distributions of DA neighbourhoods across values of K for the mouse ageing thymus (A) and human cirrhotic liver (B) data sets. Shown are the distributions of log fold-changes (y-axis) for DA (FDR 10\%) neighbourhoods using different values of K (x-axis) from 5-100, illustrating that DA testing is robust across a broad range of values of K.}
-\end{figure}
-
-
-
-\begin{figure}
-\centering
-\includegraphics{suppl_figs/suppl_fig_Kselection.pdf}
-\caption{\label{fig:sup-fig-Kselection}\textbf{Selection of \(K\) parameter}
-(A-B) Example trends for TPR and FDR for increasing values of K used for KNN graph building on simulated DA on 8 regions (\(P(C1) = 0.8\)). Dotted lines highlight TPR=0.8 and FDR=0.1 thresholds. (C) The median number of cells per experimental sample is a function of the neighbourhood size \(\sum_s{n_s}\) divided by the total number of samples \(S\). (D-F) Histogram of neighbourhood sizes for different choices of K. The red dotted line denotes the minimum neighbourhood size to obtain 5 cells per sample on average.}
-\end{figure}
 
 
 

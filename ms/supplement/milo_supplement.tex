@@ -131,7 +131,7 @@ For pre-processing of scRNA-seq profiles we recommend following standard practic
 Comparing biological conditions often requires acquiring single-cell data from multiple samples, that can be generated with different experimental conditions or protocols. This commonly introduces batch effects, which can have a substantial impact on the data composition and subsequently the topology of any KNN graph computed across the single-cell data. Consequently, this will have an impact on the ability of \emph{Milo} to resolve genuine differential abundance of cells between experimental conditions of interest. In addition, other biological nuisance covariates can impact DA analysis i.e.~biological factors that are not of interest for the analyst, such as donor of origin or sex of the donor. We recommend mitigating the impact of technical or other nuisance covariates \emph{before} building the KNN graph, by using one of the many \emph{in silico} integration tools designed for this task in single-cell datasets.
 Defining the best tool for this task is beyond the scope of this work; we refer the reader to a large number of integration methods that have been reviewed and benchmarked in {[}\protect\hyperlink{ref-lueckenBenchmarkingAtlaslevelData2020}{4}--\protect\hyperlink{ref-tranBenchmarkBatcheffectCorrection2020}{6}{]}. However, users should consider the type of output produced by their integration method of choice, typically one of (A) a corrected feature space, (B) a joint embedding or (C) an integrated graph. The refined neighbourhood search procedure in \emph{Milo} relies on finding neighbors in reduced dimension space. Therefore using a batch-correction method that produces an integrated graph (e.g.~BBKNN {[}\protect\hyperlink{ref-polanskiBBKNNFastBatch}{7}{]}, Conos {[}\protect\hyperlink{ref-barkasJointAnalysisHeterogeneous2019}{8}{]}) may lead to sub-optimal results in DA testing with \emph{Milo}, as the refined neighbourhood search procedure would still be affected by the batch effect.
 
-In addition, the effect of nuisance covariates should be modelled in the generalized linear model used for DA testing in \emph{Milo} to minimize the emergence of false positives in case of imperfect batch correction (see Section \ref{testDA}) (Fig.2D, Supp Fig. 11).
+In addition, the effect of nuisance covariates should be modelled in the generalized linear model used for DA testing in \emph{Milo} to minimize the emergence of false positives in case of imperfect batch correction (see Section \ref{testDA}) (Fig 2D, Supp Fig 11).
 
 We wish to emphasize that, in the presence of confounding factors, an appropriate experimental design is crucial to obtain reliable results from differential abundance analysis: if nuisance factors are 100\% confounded with the biological condition used for differential abundance (e.g.~if the samples from diseased and healthy donors are processed in separate sequencing batches), there is no way to disentangle the abundance differences that are truly driven by the biology of interest. In a similar case applying a batch integration strategy before graph construction could lead to a loss of biological signal.
 
@@ -268,7 +268,7 @@ We recommend users to inspect the histogram of neighbourhood sizes after samplin
 \paragraph*{\texorpdfstring{Selecting the proportions of cells sampled as neighbourhood indices \(p\)}{Selecting the proportions of cells sampled as neighbourhood indices p}}\label{selecting-the-proportions-of-cells-sampled-as-neighbourhood-indices-p}}
 \addcontentsline{toc}{paragraph}{Selecting the proportions of cells sampled as neighbourhood indices \(p\)}
 
-The proportion of cells sampled for search of neighbourhood indices can affect the total number of neighbourhoods used for analysis, but this number will converge for high proportions thanks to the sampling refinement step described in section \ref{nh} (Supp Fig. 1A). In practice, we recommend initiating neighbourhood search with \(p=0.05\) for datasets with more than 100k cells and \(p=0.1\) otherwise, which we have found to give appropriate coverage across the KNN graph while reducing the computational and multiple-testing burden. We recommend selecting \(p > 0.1\) only if the dataset appears to contain rare disconnected subpopulations.
+The proportion of cells sampled for search of neighbourhood indices can affect the total number of neighbourhoods used for analysis, but this number will converge for high proportions thanks to the sampling refinement step described in section \ref{nh} (Supp Fig 1A). In practice, we recommend initiating neighbourhood search with \(p=0.05\) for datasets with more than 100k cells and \(p=0.1\) otherwise, which we have found to give appropriate coverage across the KNN graph while reducing the computational and multiple-testing burden. We recommend selecting \(p > 0.1\) only if the dataset appears to contain rare disconnected subpopulations.
 
 \hypertarget{notes-on-experimental-design}{%
 \subsection{Notes on experimental design}\label{notes-on-experimental-design}}
@@ -288,7 +288,7 @@ number of replicate samples. Collecting more cells gives a greater coverage of t
 detection for rarer sub-populations. Increasing \(K\) increases power by constructing larger neighbourhoods, however, this increase in power comes at a cost of
 reduced sensitivity for rarer sub-populations and an increased false discovery rate (Supp Note Fig 1A-B). Designing an experiment with more replicate samples has
 multiple benefits in terms of increasing statistical testing power, increasing the signal-to-noise ratio, and increasing the accuracy of effect size estimates
-(Suppl Fig 8B). Therefore, in order of their impact on power and differential abundance testing, we would recommend: (1) collecting more replicate samples, with
+(Supp Fig 8B). Therefore, in order of their impact on power and differential abundance testing, we would recommend: (1) collecting more replicate samples, with
 a minimum of n=3, (2) collecting more cells per sample, (3) increasing \(K\) to generate larger neighbourhoods.
 
 \hypertarget{batch-effects-and-experimental-design}{%
@@ -306,7 +306,7 @@ As described above, the exact choice of batch integration method should be caref
 a batch-integrated space (either reduced dimensions or gene expression). The key point is that sample processing and experimental batches are not perfectly
 confounded with the biological variable of interest. We expect \emph{some} technical variability to remain (no batch integration is perfect), which can be handled in
 Milo's GLM framework by including the batch identity as a blocking factor in the design model. Examples of this correction are shown in the benchmarking in
-Fig. 2E and supp Fig. 11.
+Fig 2E and supp Fig 11.
 
 \hypertarget{supplementary-note-figures}{%
 \section{Supplementary Note Figures}\label{supplementary-note-figures}}
