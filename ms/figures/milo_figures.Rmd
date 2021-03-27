@@ -50,7 +50,7 @@ knitr::include_graphics("figs/fig_scalability.pdf", auto_pdf = TRUE)
 ```
 
 (ref:fig-scalability) **Milo efficiently scales to large data sets**
-(A) Run time (y-axis) of the Milo workflow from graph building to differential abundance testing. Each point represents a down-sampled dataset, denoted by shape. Coloured points show the total number of cells in the full dataset labelled by the elapsed system tim (mins). 
+(A) Run time (y-axis) of the Milo workflow from graph building to differential abundance testing. Each point represents a down-sampled dataset, denoted by shape. Coloured points show the total number of cells in the full dataset labelled by the elapsed system time (mins). 
 (B) Total memory usage (y-axis) across the Milo workflow. Each point represents a down-sampled dataset, denoted by shape. Coloured points are the full datasets labelled with the total memory usage (megabytes).
 
 
@@ -61,11 +61,11 @@ knitr::include_graphics("figs/fig_thymus.pdf", auto_pdf = TRUE)
 (ref:fig-thymus) **Milo identifies the decline of a fate-biased precursor in the ageing mouse thymus.**
 (A-B) A UMAP of single thymic epithelial cells sampled from mice aged 1-52 weeks old. Points are labelled according to their annotation in Baran-Gale et al. 2020 (A) and mouse age (B)
 (C) A graph representation of the results from Milo differential abundance testing. Nodes are neighbourhoods, coloured by their log fold change across ages. Non-DA neighbourhoods (FDR 10%) are coloured white, and sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods. The layout of nodes is determined by the position of the neighbourhood index cell in the UMAP embedding of single cells.
-(D) Beeswarm plot showing the distribution of log-fold change across age in neighbourhoods containing cells from different cell type clusters. DA neighbourhoods at FDR 10% are coloured. Cell types detected as DA through clustering by Baran-Gale et al. (2020) are annotated in the left side bar.
-(E) A heatmap of genes differentially expressed between DA neighbourhoods in the Intertypical TEC cluster. Each column is a neighbourhood and rows are differentially expressed genes (FDR 5%). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.
-(F) Neighbourhood grouping, overlaid on the neighbourhood graph as in (C). Colours denote assignment of neighbourhoods to discrete groups using Louvain clustering.
+(D) Beeswarm plot showing the distribution of log-fold change across age in neighbourhoods containing cells from different cell type clusters. DA neighbourhoods at FDR 10% are coloured. Cell types detected as DA through clustering by Baran-Gale et al. [3] are annotated in the left side bar.
+(E) Neighbourhood grouping, overlaid on the neighbourhood graph as in (C). Colours denote assignment of neighbourhoods to discrete groups using Louvain clustering.
+(F) A heatmap of genes differentially expressed between DA neighbourhoods in the Intertypical TEC cluster. Each column is a neighbourhood and rows are differentially expressed genes (FDR 5%). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.
 (G) Schematic showing the label transfer of neighbourhood group labels to an independent droplet scRNA-seq dataset of ageing mouse TEC from Baran-Gale et al. (2020). Datasets are integrated, then mutual nearest neighbours (MNNs) are identified, and neighbourhood group labels are transferred to cells in the droplet scRNA-seq dataset.
-(H) A joint UMAP embedding of SMARTseq and droplet scRNA-seq datasets, highlighting label-transferred neighbourhood groups, as coloured in (F).
+(H) A joint UMAP embedding of SMARTseq and droplet scRNA-seq datasets, highlighting label-transferred neighbourhood groups, as coloured in (E).
 (I) Boxplots showing the proportions of cells from the droplet scRNA-seq dataset for each neighbourhood group across ages, providing independent validation of the results in (C). Individual points represent replicates (n=3 mice per age).
 
 ```{r fig-5, fig.cap="(ref:fig-liver)", out.width = "500px"}
@@ -74,7 +74,8 @@ knitr::include_graphics("figs/fig_liver.pdf", auto_pdf = TRUE)
 
 (ref:fig-liver) **Milo identifies the compositional disorder in cirrhotic liver**
 (A-B) UMAP embedding of 58358 cells from healthy (n = 5) and cirrhotic (n = 5) human livers. Cells are colored by cellular lineage (A) and injury condition (B)
-(C) Graph representation of neighbourhoods identified by Milo. Nodes are neighbourhoods, coloured by their log fold change between cirrhotic and healthy samples. Non-DA neighbourhoods (FDR 10%) are coloured white, and sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods. The layout of nodes is determined by the position of the neighbourhood index cell in the UMAP embedding of single cells. (D) Beeswarm plot showing the distribution of log-fold change in abundance between conditions in neighbourhoods from different cell type clusters. DA neighbourhoods at FDR 10% are coloured. Cell types detected as DA through clustering by Ramachandran et al. (2019) are annotated in the left side bar. (E-F) UMAP embedding and graph representation of neighbourhoods of 7995 cells from endothelial lineage, coloured by DA log-fold change (E) and grouping used for DGE testing (F) (G) Heatmap showing average neighbourhood expression of genes differentially expressed between DA neighbourhoods in the endothelial lineage (788 genes). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.
+(C) Graph representation of neighbourhoods identified by Milo. Nodes are neighbourhoods, coloured by their log fold change between cirrhotic and healthy samples. Non-DA neighbourhoods (FDR 10%) are coloured white, and sizes correspond to the number of cells in a neighbourhood. Graph edges depict the number of cells shared between adjacent neighbourhoods. The layout of nodes is determined by the position of the neighbourhood index cell in the UMAP embedding of single cells. (D) Beeswarm plot showing the distribution of log-fold change in abundance between conditions in neighbourhoods from different cell type clusters. DA neighbourhoods at FDR 10% are coloured. Cell types detected as DA through clustering by Ramachandran et al. [2] are annotated in the left side bar. (E) UMAP embedding and graph representation of neighbourhoods of 7995 cells from endothelial lineage, coloured by DA log-fold change. 
+(F) Heatmap showing average neighbourhood expression of genes differentially expressed between DA neighbourhoods in the endothelial lineage (788 genes). Expression values for each gene are scaled between 0 and 1. The top panel denotes the neighbourhood DA log fold-change.
 
 
 
