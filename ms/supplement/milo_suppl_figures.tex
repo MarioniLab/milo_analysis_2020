@@ -184,7 +184,7 @@ Neighbourhood statistics were calculated using a simulated trajectory dataset of
 
 \begin{figure}
 \includegraphics[width=500px]{suppl_figs/suppl_fig_memory} \caption{\textbf{Memory usage across the Milo analysis workflow.}
-Total memory usage across the steps of the Milo analysis workflow in 4 datasets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denote down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) KNN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all datasets for graph building and neighbourhood construction (k=30).}\label{fig:sup-fig-scalability}
+Total memory usage across the steps of the Milo analysis workflow in 4 datasets containing different numbers of cells (Gastrulation: circles, Liver: triangles, Thymus: crosses, Simulation: squares). Grey points denote down-sampled datasets of the corresponding type. Coloured points denote the total number of cells for the respective dataset. Total memory usage (y-axis) is shown in megabytes (MB). (A) KNN graph building, (B) neighbourhood sampling and construction, (C) within-neighbourhood distance calculation, (D) cell counting in neighbourhoods according to the input experimental design, (E) differential abundance testing, (F) total in memory R object size. A fixed value was used in all datasets for graph building and neighbourhood construction (K=30).}\label{fig:sup-fig-scalability}
 \end{figure}
 
 
@@ -212,12 +212,10 @@ Total memory usage across the steps of the Milo analysis workflow in 4 datasets 
 \centering
 \includegraphics{suppl_figs/suppl_fig_chol.pdf}
 \caption{\label{fig:sup-fig-liver-chol}\textbf{Downstream analysis of disease-specific cholangiocyte subpopulations in liver cirrhosis.}
-Downstream analysis of disease-specific cholangiocyte subpopulations in liver cirrhosis
 (A-B) UMAP embedding (A) and graph representation (B) of neighbourhoods of 3369 cells from cholangiocyte lineage.
-(C) Volcano plot for DGE test on cholangiocytes DA subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the adjusted p-value.
+(C) Volcano plot for DGE test on cholangiocytes DA subpopulations: the x-axis shows the log-fold change between expression in cirrhotic and healthy cholangiocytes. The y-axis shows the -log10(adjusted p-value).
 (D) GO term enrichment analysis on marker genes of cirrhosis-enriched cholangiocytes. The top 20 significant terms are shown.}
 \end{figure}
-
 
 
 
