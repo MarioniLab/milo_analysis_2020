@@ -41,7 +41,7 @@ knitr::include_graphics("figs/fig_benchmark.pdf", auto_pdf = TRUE)
 ```
 
 (ref:fig-benchmark) **Milo outperforms alternative DA testing approaches and controls for false discoveries in the presence of batch effects.** (A) Schematic of the strategy used to simulate ground truth regions of differential abundance: on a KNN graph from real or simulated single-cell profiles (1) we generate a smooth probability for each single-cell to be in Condition 1 (2) and use it to assign condition labels to cells (3). Cells in each condition are randomly split into 3 synthetic replicates for testing. 
-(B) A table outlining the characteristics of the methods compared to Milo. 
+(B) A table outlining the characteristics of the methods compared to Milo (see Suppl Table 3 for a more extensive comparison). 
 (C) True Positive Rate (TPR, top) and False Discovery Rate (FDR, bottom) for recovery of cells in simulated DA regions for DA populations with increasing simulated Fold-Change on the mouse gastrulation dataset. For each boxplot, results from 8 populations and 3 condition simulations per population are shown. Each panel represents a different DA method. (D) Example UMAP visualization of simulated batch effects of increasing magnitude.
 (E) True Positive Rate (TPR, top) and False Discovery Rate (FDR, bottom) for recovery of cells in simulated DA regions for DA populations with simulated batch effects of increasing magnitude. For each boxplot, results from 8 populations, simulated fold change > 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot). Each panel represents a different DA method. The batch covariate is included in the test design for GLM based methods (~ batch + condition). 
 
