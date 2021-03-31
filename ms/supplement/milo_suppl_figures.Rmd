@@ -147,6 +147,11 @@ knitr::include_graphics("suppl_tables/table_simulation_params.pdf", auto_pdf = T
 
 (ref:sup-tab-2) **Summary of parameters used for DA simulations**
 
+```{r sup-tab-1,  fig.cap="(ref:sup-tab-1)", echo=FALSE}
+knitr::include_graphics("suppl_tables/table_methods_comparison.pdf", auto_pdf = TRUE)
+```
+
+(ref:sup-tab-1) **Qualitative comparison of evaluated methods for DA analysis**
 
 ```{r sup-tab-3,  fig.cap="(ref:sup-tab-3)", echo=FALSE}
 knitr::include_graphics("suppl_tables/table_methods_params.pdf", auto_pdf = TRUE)
@@ -154,11 +159,7 @@ knitr::include_graphics("suppl_tables/table_methods_params.pdf", auto_pdf = TRUE
 
 (ref:sup-tab-3) **Summary of parameters used for benchmarking of DA methods**
 
-```{r sup-tab-1,  fig.cap="(ref:sup-tab-1)", echo=FALSE}
-knitr::include_graphics("suppl_tables/table_methods_comparison.pdf", auto_pdf = TRUE)
-```
 
-(ref:sup-tab-1) **Qualitative comparison of evaluated methods for DA analysis**
 
 \newpage
 
