@@ -392,7 +392,60 @@ run_louvain <- function(sce, condition_col, sample_col, k=15, d=30, reduced.dim=
   clust.df$logFC <- louvain.res[clust.df$Louvain.Clust, 'logFC']
   clust.df$FDR <- louvain.res[clust.df$Louvain.Clust, 'FDR']
   return(clust.df)
+}
+
+
+run_louvain_nbglm <- function(sce, condition_col, sample_col, k=15, d=30, reduced.dim="PCA", batch_col=NULL, norm.method="TMM"){
+  ## Make design matrix
+  design_df <- as.tibble(colData(sce)[c(sample_col, condition_col, batch_col)]) %>%
+    distinct() %>%
+    dplyr::rename(sample=sample_col)
+  if (is.null(batch_col)) {
+    design <- formula(paste('~', condition_col, collapse = ' '))  
+  } else {
+    design <- formula(paste('~', batch_col, "+", condition_col, collapse = ' '))
   }
+  ## Louvain clustering
+  X_red_dim = reducedDim(sce, reduced.dim)[,1:d]
+  sce.graph <- buildKNNGraph(t(X_red_dim), k=k)
+  louvain.clust <- cluster_louvain(sce.graph)
+  louvain.clust.ids <- membership(louvain.clust)
+  
+  condition_vec <- colData(sce)[[condition_col]]
+  sample_labels <- colData(sce)[[sample_col]]
+  clust.df <- data.frame("cell_id"=colnames(sce), "Louvain.Clust"=as.character(louvain.clust.ids))
+  clust.df$Sample <- sample_labels
+  clust.df$Condition <- condition_vec
+  
+  louvain.count <- table(clust.df$Louvain.Clust, clust.df$Sample)
+  attributes(louvain.count)$class <- "matrix"
+  
+  ## Test with same NB-GLM as Milo
+  if(norm.method %in% c("TMM")){
+    message("Using TMM normalisation")
+    dge <- DGEList(counts=louvain.count,
+                   lib.size=colSums(louvain.count))
+    dge <- calcNormFactors(dge, method="TMM")
+  } else if(norm.method %in% c("logMS")){
+    message("Using logMS normalisation")
+    dge <- DGEList(counts=louvain.count,
+                   lib.size=colSums(louvain.count))
+  }
+  
+  model <- model.matrix(design, data=design_df)
+  rownames(model) <- design_df$sample
+  model <- model[colnames(louvain.count), ]
+  
+  dge <- estimateDisp(dge, model)
+  fit <- glmQLFit(dge, model, robust=TRUE)
+  n.coef <- ncol(model)
+  louvain.res <- as.data.frame(topTags(glmQLFTest(fit, coef=n.coef), sort.by='none', n=Inf))
+  
+  clust.df$logFC <- louvain.res[clust.df$Louvain.Clust, 'logFC']
+  clust.df$FDR <- louvain.res[clust.df$Louvain.Clust, 'FDR']
+  return(clust.df)
+}
+
 
 louvain2output <- function(louvain_res, out_type="continuous", alpha=0.1, lfc_threshold=0){
   if (out_type=="continuous") {
@@ -457,12 +510,12 @@ runDA <- function(sce, coldata, X_pca,
     out <- daseq2output(sce, daseq_res, out_type = out_type)
   } else if (method == "louvain"){
     ## Run louvain
-    louvain_res <- run_louvain(sce, condition_col=condition_col, sample_col=sample_col,
+    louvain_res <- run_louvain_nbglm(sce, condition_col=condition_col, sample_col=sample_col,
                                reduced.dim = "pca_batch", d=d, k=params$louvain$k)
     out <- louvain2output(louvain_res, out_type = out_type)
   } else if (method == "louvain_batch"){
     ## Run louvain
-    louvain_batch_res <- run_louvain(sce, condition_col=condition_col, sample_col=sample_col,
+    louvain_batch_res <- run_louvain_nbglm(sce, condition_col=condition_col, sample_col=sample_col,
                                reduced.dim = "pca_batch", d=d, k=params$louvain$k, batch_col="synth_batches")
     out <- louvain2output(louvain_batch_res, out_type = out_type)
   }
@@ -481,7 +534,6 @@ runDA <- function(sce, coldata, X_pca,
   long_bm[["method"]] <- method
   return(long_bm)
 }
-
 
 calculate_outcome <- function(long_bm){
   long_bm <- long_bm %>%
