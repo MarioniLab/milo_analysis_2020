@@ -21,11 +21,11 @@ for pop in $pops
         do
         for batch_sd in $batch_vec
             do
-            for method in $R_methods
-            do
+#             for method in $R_methods
+#             do
             echo "Rscript ./run_DA_R.r /nfs/team205/ed6/data/milo_benchmark/${data_id}_data_bm.RDS $method $seed $pop --pop_enrichment $pop_enr --data_id $data_id --k $k --batchEffect_sd $batch_sd --MNN_correct yes" | \
                                 bsub -G team283  -o ${outdir}/milo_bm_MNN_${data_id}_${seed}_${method}_${pop}_${batch_sd}.out -e ${outdir}/milo_bm_MNN_${data_id}_${seed}_${method}_${pop}_${batch_sd}.err -R"select[mem>3500] rusage[mem=3500]" -M3500 
-                    done
+#                     done
                 done
             done
         done

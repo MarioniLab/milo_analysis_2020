@@ -26,7 +26,7 @@ for p in $(seq 1 1 7)
     do 
     for seed in 43 44 45
         do 
-        for enr in 0.75 0.85 0.95
+        for enr in $(seq 0.75 0.1 0.95)
         do 
             echo "Rscript ./make_bm_data.R --pop_enrichment $enr --make_batch_effect no --data_id $data_id /nfs/team205/ed6/data/milo_benchmark/${data_id}_data_bm.RDS ${seed} M${p}" | bsub -o ${outdir}/milo_make_bm_data_${data_id}_${seed}.out -e ${outdir}/milo_make_bm_data_${data_id}_${seed}.err -G team283 -R"select[mem>3500] rusage[mem=3500]" -M3500
         done
@@ -39,9 +39,9 @@ for p in $(seq 1 1 3)
     do 
     for seed in 43 44 45
         do 
-        for enr in 0.75 0.85 0.95
+        for enr in $(seq 0.7 0.1 0.9)
         do 
-            echo "Rscript ./make_bm_data.R --pop_enrichment $enr --make_batch_effect no --data_id $data_id /nfs/team205/ed6/data/milo_benchmark/${data_id}_data_bm.RDS ${seed} B${p}" | bsub -o ${outdir}/milo_make_bm_data_${data_id}_${seed}.out -e ${outdir}/milo_make_bm_data_${data_id}_${seed}.err -G team283 -R"select[mem>3500] rusage[mem=3500]" -M3500
+            echo "Rscript ./make_bm_data_clusters.R --pop_enrichment $enr --make_batch_effect no --data_id $data_id /nfs/team205/ed6/data/milo_benchmark/${data_id}_data_bm.RDS ${seed} B${p}" | bsub -o ${outdir}/milo_make_bm_data_${data_id}_${seed}.out -e ${outdir}/milo_make_bm_data_${data_id}_${seed}.err -G team283 -R"select[mem>3500] rusage[mem=3500]" -M3500
         done
     done
 done
@@ -52,7 +52,7 @@ for p in $(seq 1 1 10)
     do 
     for seed in 43 44 45
         do 
-        for enr in 0.75 0.85 0.95
+        for enr in $(seq 0.75 0.1 0.95)
         do 
             echo "Rscript ./make_bm_data.R --pop_enrichment $enr --make_batch_effect no --data_id $data_id /nfs/team205/ed6/data/milo_benchmark/${data_id}_data_bm.RDS ${seed} M${p}" | bsub -o ${outdir}/milo_make_bm_data_${data_id}_${seed}.out -e ${outdir}/milo_make_bm_data_${data_id}_${seed}.err -G team283 -R"select[mem>3500] rusage[mem=3500]" -M3500
         done
@@ -60,4 +60,4 @@ for p in $(seq 1 1 10)
 done
 
 
-if [ -f  ]; then
+# if [ -f  ]; then

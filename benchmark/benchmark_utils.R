@@ -109,7 +109,7 @@ add_synthetic_labels_pop <- function(sce, # SingleCellExperiment obj
   if (!is.null(cap_enr)) {
     cond_probability <- ifelse(cond_probability > cap_enr, cap_enr, cond_probability)
   }
-  sim3$Condition1_prob <- ifelse(sim3$Condition1_prob > 0.8, 0.8, sim3$Condition1_prob)
+  # sim3$Condition1_prob <- ifelse(sim3$Condition1_prob > 0.8, 0.8, sim3$Condition1_prob)
   
   cond_probability = cbind(cond_probability, 1 - cond_probability)
   colnames(cond_probability) = conditions
@@ -123,6 +123,54 @@ add_synthetic_labels_pop <- function(sce, # SingleCellExperiment obj
   synth_samples <- paste0(synth_labels, "_", replicates)
   if(n_batches > 1){
    names(batches) <- sort(unique(synth_samples))
+  } else{
+    batches <- rep("B1", length(unique(synth_samples)))
+    names(batches) <- unique(synth_samples)
+  }
+  synth_batches <- batches[synth_samples]
+  
+  # Add synthetic labels and probabilities to colData
+  colData(sce)[["synth_labels"]] <- synth_labels
+  # colData(sce)[["synth_replicates"]] <- synth_replicates
+  colData(sce)[["synth_samples"]] <- synth_samples
+  colData(sce)[["synth_batches"]] <- synth_batches
+  colnames(cond_probability) <- paste0(colnames(cond_probability), "_prob")
+  colData(sce)[colnames(cond_probability)] <- cond_probability
+  return(sce)
+}
+
+## Simple synthetic condition labelling based on cluster membership
+add_synthetic_labels_by_cluster <- function(sce, # SingleCellExperiment obj
+                                            pop, pop_column="celltype",
+                                            pop_enr = 0.7,
+                                            # redDim='pca.corrected', # embedding to use to simulate differential abundance
+                                            n_conditions=2, # number of conditions to simulate
+                                            n_replicates=3, # number of replicates per condition
+                                            n_batches = 2, # number of technical batches per condition (at least 2 replicates per batch)
+                                            condition_balance = 1, # the distribution of cells across conditions (1 = equal)
+                                            m=2, # Fuzziness parameter (higher m, more fuzziness)
+                                            a_logit=0.5, # logit parameter
+                                            cap_enr=NULL,
+                                            seed=42){
+  
+  set.seed(seed)
+  conditions = paste0("Condition", 1:n_conditions)
+  
+  ## Set prop != 0.5 for cells in pop
+  cond_probability <- rep(0.5, ncol(sce))
+  cond_probability[sce[[pop_column]] == pop] <- pop_enr
+  cond_probability = cbind(cond_probability, 1 - cond_probability)
+  colnames(cond_probability) = conditions
+  
+  # Generate labels for condition and replicates
+  synth_labels <- sapply(1:nrow(cond_probability),  function(i) sample(colnames(cond_probability), size = 1, prob = cond_probability[i,]))
+  
+  replicates <- paste0("R", 1:n_replicates)
+  batches <- sample(paste0("B", rep(1:n_batches, each=n_replicates)))
+  
+  synth_samples <- paste0(synth_labels, "_", replicates)
+  if(n_batches > 1){
+    names(batches) <- sort(unique(synth_samples))
   } else{
     batches <- rep("B1", length(unique(synth_samples)))
     names(batches) <- unique(synth_samples)
