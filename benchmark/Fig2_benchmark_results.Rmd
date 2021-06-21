@@ -246,12 +246,14 @@ read4_prob_hist <- function(data_id){
         benchmark_df <- mutate(benchmark_df, pred = ifelse(pred=="NegLFC", "PosLFC", ifelse(pred=="PosLFC", "NegLFC", "NotDA")))
       }
     }
-    benchmark_df
+    benchmark_df %>%
+      mutate(id=i)
     })
   
   res_df <- res_ls  %>%
-    purrr::reduce(bind_rows) %>%
-    select(true_prob, pred, method) 
+    purrr::reduce(bind_rows) 
+  # %>%
+  #   select(true_prob, pred, method) 
   
   return(res_df)  
 }
@@ -295,6 +297,66 @@ plot_p_hist(embryo_res_df) + ggtitle("embryo") +
   plot_layout(guides="collect") +
   ggsave(paste0(figdir, "/pC1_histograms.pdf"), width=18, height = 6)
 
+```
+
+```{r, fig.height=5, fig.width=16}
+plot_thresh_hist <- function( linear_res_df){
+  quants <- quantile(1-linear_res_df$true_prob, seq(0, 1, 0.05))
+  keep_quants <- c("25%", "50%",  "90%", "95%")
+  linear_res_df %>%
+    filter(method=="milo") %>%
+      ggplot(aes(1 - true_prob)) +
+      geom_histogram(bins=50) +
+      xlab("P(C1)") + ylab("# cells") +
+      theme_bw(base_size=16) +
+      scale_fill_brewer(palette="Set1", name="Predicted effect") +
+      geom_vline(xintercept = quants[keep_quants], linetype=2) +
+    coord_cartesian(clip = 'off') +
+    annotate('text', x=quants[keep_quants], y=Inf, label=(keep_quants), hjust=0, vjust=0, angle=60) +
+    geom_vline(xintercept = quants["75%"], linetype=2, color="red") +
+    annotate('text', x=quants["75%"], y=Inf, label="75%", hjust=0, vjust=0, angle=60, color="red") +
+    annotate('text', x=Inf, y=Inf, label=paste('t =', round(quants["75%"], 3)), hjust=1.1, vjust=1.5, angle=0, color='red', size=5) +
+    theme(plot.margin = unit(c(1,0.5,1,0.5), "cm"), title = element_text(vjust = 1)) 
+}
+
+(plot_thresh_hist(linear_res_df) + ggtitle("1D trajectory", subtitle="") |
+plot_thresh_hist(branch_res_df) + ggtitle("Branching trajectory", subtitle="") |
+plot_thresh_hist(embryo_res_df) + ggtitle("Mouse Gastrulation", subtitle="")) +
+  ggsave(paste0(figdir, "pC1_full_hist_quantiles.pdf"), width=16, height = 5)
+```
+
+
+
+```{r, fig.width=15, fig.height=5}
+linear_res_df %>%
+  group_by(id) %>%
+  mutate(max_pC1 = 1-min(true_prob)) %>%
+  ungroup() %>%
+  filter(max_pC1==0.7) %>%
+  plot_p_hist() +
+  xlim(0.5,1) +
+  ggtitle('max_pC1 = 0.7') +
+
+linear_res_df %>%
+  group_by(id) %>%
+  mutate(max_pC1 = 1-min(true_prob)) %>%
+  ungroup() %>%
+  filter(max_pC1==0.8) %>%
+  plot_p_hist() +
+  xlim(0.5,1) +
+  ggtitle('max_pC1 = 0.8') +
+
+linear_res_df %>%
+  group_by(id) %>%
+  mutate(max_pC1 = 1-min(true_prob)) %>%
+  ungroup() %>%
+  filter(max_pC1==0.9) %>%
+  plot_p_hist() +
+  xlim(0.5,1) +
+  ggtitle('max_pC1 = 0.9') +
+
+plot_layout(guides="collect")
+  
 ```
 
 Use 75% quantile of P(C1) in all cells to define threshold for true DA
@@ -356,7 +418,7 @@ plot_outcome_umap <- function(sce, method, pop, enr, seed, batchEffect, true=FAL
   }
   if (true) {
     pl <- data.frame(reducedDim(sce, red_dim)) %>%
-    dplyr::rename(UMAP1=X1, UMAP2=X2) %>%
+    dplyr::rename_all( ~ c("UMAP1", "UMAP2") ) %>%
     mutate(true=sce$Condition1_prob) %>%
     arrange(true) %>%
     ggplot(aes(UMAP1, UMAP2, color=true)) + 
@@ -370,7 +432,7 @@ plot_outcome_umap <- function(sce, method, pop, enr, seed, batchEffect, true=FAL
      xlab("UMAP1") + ylab("UMAP2") 
   } else {
     pl <- data.frame(reducedDim(sce, red_dim)) %>%
-    dplyr::rename(UMAP1=X1, UMAP2=X2) %>%
+    dplyr::rename_all( ~ c("UMAP1", "UMAP2") ) %>%
     dplyr::mutate(method=method) %>%
     dplyr::mutate(predicted=factor(sce$predicted, levels=c("NegLFC", "PosLFC", 'NotDA'))) %>%
     dplyr::arrange(- predicted) %>%
@@ -755,7 +817,8 @@ lfc_comparison <- function(milo_out, meld_out){
   lfc_df <- nh_meld %>%
         mutate(milo_LFC=milo_out$logFC,
          milo_signif=milo_out$SpatialFDR < 0.1,
-         true_labels=milo_out$true_labels,
+         # true_labels=milo_out$true_labels,
+         true_labels=ifelse(true_prob < 1-embryo_thresh, "NegLFC", "NotDA"),
          nh_size=milo_out$nh_size
          ) %>%
         mutate(true_LFC=prob2FC(true_prob), meld_LFC=prob2FC(Condition2)) %>%
@@ -775,6 +838,7 @@ meld_files <- str_remove_all(milo_files, paste0(data_dir, "/")) %>%
   paste0(data_dir, .)
 meld_outs <- lapply(meld_files, read_csv)
 
+
 meldVSmilo_meta <- data.frame(file_id = str_remove_all(meld_files, paste0(data_dir, "|/|benchmark_embryo_pop_|.csv"))) %>%
   separate(col = file_id, sep = ".DAresults.", into=c("file_id", "method")) %>%
   separate(col = file_id, sep = "_enr", into=c("pop", "file_id")) %>%
@@ -789,6 +853,7 @@ meldVSmilo_meta <- data.frame(file_id = str_remove_all(meld_files, paste0(data_d
 lfc_df <- lapply(seq_along(milo_res_outs), function(i) lfc_comparison(milo_res_outs[[i]], meld_outs[[i]]) %>%
                    bind_cols(meldVSmilo_meta[i,])) %>%
   purrr::reduce(bind_rows)
+
 
 ```
 
@@ -887,7 +952,7 @@ pl_right1 <- lfc_df %>%
   summarise(MSE = MSE(true_LFC, estimated_LFC), sd=sd(abs(true_LFC - estimated_LFC))) %>%
   ungroup() %>%
   mutate(method = str_remove(method,"_LFC")) %>%
-  rename(`Batch effect \nmagnitude` = batchEffect) %>%
+  dplyr::rename(`Batch effect \nmagnitude` = batchEffect) %>%
   filter(true_labels=="NotDA") %>%
   ggplot(aes(as.factor(round(prob2FC(as.numeric(enr)), 1)), MSE, color = method)) +
   geom_boxplot() +
@@ -896,14 +961,14 @@ pl_right1 <- lfc_df %>%
   xlab("Simulated log-Fold Change") +
   scale_color_methods() +
   theme(legend.position="top", legend.justification = c(1,1)) +
-  ylim(0,2.1)
+  ylim(0,0.6)
 pl_right2 <- lfc_df %>%
   filter(k==50) %>%
   group_by(method, pop, true_labels, k, enr, batchEffect) %>%
   summarise(MSE = MSE(true_LFC, estimated_LFC), sd=sd(abs(true_LFC - estimated_LFC))) %>%
   ungroup() %>%
   mutate(method = str_remove(method,"_LFC")) %>%
-  rename(`Batch effect \nmagnitude` = batchEffect) %>%
+  dplyr::rename(`Batch effect \nmagnitude` = batchEffect) %>%
   filter(true_labels=="NegLFC") %>%
   ggplot(aes(as.factor(round(prob2FC(as.numeric(enr)), 1)), MSE, color = method)) +
   geom_boxplot() +
@@ -912,11 +977,13 @@ pl_right2 <- lfc_df %>%
   xlab("Simulated log-Fold Change") +
   scale_color_methods() +
   theme(legend.position="top", legend.justification = c(1,1)) +
-  ylim(0,2.1)
+  ylim(0,0.6)
 
 pl_right <- pl_right1 + pl_right2 +
   plot_layout(guides="collect") &
   theme(legend.position="top", legend.justification = c(1,1)) 
+
+pl_right
 ```
 
 ```{r, fig.width=14, fig.height=10}
@@ -1495,29 +1562,31 @@ read_input_data <- function(embryo_sce, indir, pop, enr, seed, batchEffect, run_
   }
   embryo_sce
 }
-
-pop="Erythroid2"
-enr='0.7'
-seed='43'
-batchEffect='0'
-indir <- "~/data/milo_benchmark/synthetic_data/"
-
-sce <- read_input_data(embryo_sce, indir=indir, pop=pop, enr=enr, seed=seed, batchEffect=batchEffect)
-
-pl_ls <- lapply(c("meld", "milo", "louvain", "daseq"), function(x) plot_outcome_umap(sce, x, pop, enr, seed, batchEffect, true=FALSE))
-pl_true <- plot_outcome_umap(sce, 'milo', pop, enr, seed, batchEffect, true=TRUE)
-pl_true + 
-  wrap_plots(pl_ls, nrow = 1, guides = "collect") +
-  plot_layout(widths = c(1,4))
+# 
+# pop="Erythroid2"
+# enr='0.7'
+# seed='43'
+# batchEffect='0'
+# indir <- "~/data/milo_benchmark/synthetic_data/"
+# 
+# sce <- read_input_data(embryo_sce, indir=indir, pop=pop, enr=enr, seed=seed, batchEffect=batchEffect)
+# 
+# pl_ls <- lapply(c("meld", "milo", "louvain", "daseq"), function(x) plot_outcome_umap(sce, x, pop, enr, seed, batchEffect, true=FALSE))
+# pl_true <- plot_outcome_umap(sce, 'milo', pop, enr, seed, batchEffect, true=TRUE)
+# pl_true + 
+#   wrap_plots(pl_ls, nrow = 1, guides = "collect") +
+#   plot_layout(widths = c(1,4))
 ```
 
 Plot benchmark design
 
-```{r, fig.height=4, fig.width=13}
+```{r}
+indir <- "~/data/milo_benchmark/synthetic_data/"
 sce <- read_input_data(embryo_sce = embryo_sce, indir=indir, pop="Mesenchyme", enr=0.9, seed=44, batchEffect=0, run_umap = FALSE)
 umap_bath_df <- data.frame(reducedDim(sce, "UMAP")) 
 library(ggrastr)
 
+## Just embedding
 p1 <- umap_bath_df %>%
     dplyr::rename(UMAP1=X1, UMAP2=X2) %>%
     ggplot(aes(UMAP1, UMAP2)) + 
@@ -1530,6 +1599,7 @@ p1 <- umap_bath_df %>%
      xlab("UMAP1") + ylab("UMAP2") +
     rasterize(geom_point(size=0.1,  color="grey"), dpi = 300)
 
+## C1 probability
 p2 <- umap_bath_df %>%
     dplyr::rename(UMAP1=X1, UMAP2=X2) %>%
     mutate(true=sce$Condition1_prob) %>%
@@ -1546,6 +1616,7 @@ p2 <- umap_bath_df %>%
      xlab("UMAP1") + ylab("UMAP2") 
   rasterize(geom_point(size=0.1), dpi = 300)
 
+## Condition labels
 p3 <- umap_bath_df %>%
     dplyr::rename(UMAP1=X1, UMAP2=X2) %>%
     mutate(true_labels=sce$synth_labels) %>%
@@ -1561,9 +1632,7 @@ p3 <- umap_bath_df %>%
 
 (p1 + p2 + p3) 
 
-```
-```{r}
-
+## Quantile threshold
 q_thresh <- quantile(sce$Condition1_prob)[4]
 data.frame(pC1 = sce$Condition1_prob) %>%
   mutate(true_labels=ifelse(sce$Condition1_prob > q_thresh, 'NegLFC', 'NotDA') ) %>%
@@ -1586,8 +1655,47 @@ p4 <- umap_bath_df %>%
      theme(axis.ticks = element_blank(),
            axis.text = element_blank(),
            legend.position = c(0.85,0.95), legend.background = element_blank()) +
+     xlab("UMAP1") + ylab("UMAP2") 
+    # ggsave("~/mount/gdrive/milo/Figures/benchmark_v2/bm_design_qThresh_umap.pdf", width=7, height = 4)
+
+## Prediction
+outdir <- "/nfs/team205/ed6/data/milo_benchmark/embryo/"
+pop="Mesenchyme"
+enr=0.9
+seed=44 
+batchEffect=0
+method = "milo"
+data_id = "embryo"
+red_dim = "UMAP"
+
+res_file <- list.files(outdir, 
+                         pattern= paste0(".+",data_id,"_pop_", pop,"_enr",enr,"_seed", seed, '.+batchEffect',batchEffect,".DAresults.",method,".csv"),
+                         full.names = TRUE)
+  
+sce$predicted <- read_csv(res_file)[["pred"]]
+
+pl <- data.frame(reducedDim(sce, red_dim)) %>%
+    dplyr::rename_all( ~ c("UMAP1", "UMAP2") ) %>%
+    dplyr::mutate(method=method) %>%
+    dplyr::mutate(predicted=factor(sce$predicted, levels=c("NegLFC", "PosLFC", 'NotDA'))) %>%
+    dplyr::arrange(- predicted) %>%
+    ggplot(aes(UMAP1, UMAP2, color=predicted)) + 
+    geom_point_rast(size=0.1, raster.dpi = 500) +
+    geom_point_rast(data= . %>% filter(predicted!="NotDA"), size=0.2, raster.dpi = 500) +
+     scale_color_manual(values=c(NegLFC="red", NotDA="grey", PosLFC="blue"), 
+                        labels=c(NegLFC="Enriched in C1", NotDA="No DA", PosLFC="Depleted in C1"), name='') +
+     guides(color = guide_legend(override.aes = list(size=1))) +
+     theme_classic(base_size=18) +
+     theme(legend.position=c(.15,.2), axis.ticks = element_blank(),
+           axis.text = element_blank()) +
      xlab("UMAP1") + ylab("UMAP2") +
-    ggsave("~/mount/gdrive/milo/Figures/benchmark_v2/bm_design_qThresh_umap.pdf", width=7, height = 4)
+      facet_wrap(method~.)  +
+  remove_x_axis() + remove_y_axis() +
+  theme(strip.text = element_blank()) +
+  rasterize(geom_point(size=0.1), dpi = 300) +
+  ggsave("~/mount/gdrive/milo/Figures/benchmark_v2/bm_design_pred_umap.pdf", width=4, height = 4)
+
+
 ```
 
 

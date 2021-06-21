@@ -1,4 +1,4 @@
-## Benchmarking scripts
+## Benchmarking scripts
 
 All analyses and steps are described in `Fig2_benchmark_results.Rmd`
 
