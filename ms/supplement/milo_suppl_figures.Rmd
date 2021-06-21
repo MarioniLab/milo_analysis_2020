@@ -46,11 +46,21 @@ knitr::include_graphics("suppl_figs/suppl_fig_clustering.pdf", auto_pdf = TRUE)
 (C) A Louvain clustering of the data in (A) using the same KNN graph. Cells are coloured by the Louvain clustering identity.
 (D-E) Heatmaps comparing the numbers of cells in each cluster with respect to the ground truth groups in (A). Each entry in the heatmap is coloured by the proportion of cells from the column groups (ground truth) that are assigned to the respective cluster.
 
+<!-- ```{r sup-fig-bm-threshold,  fig.cap="(ref:sup-fig-bm-threshold)", echo=FALSE} -->
+<!-- knitr::include_graphics("suppl_figs/suppl_fig_bm_threshold.pdf", auto_pdf = TRUE) -->
+<!-- ``` -->
+
+<!-- (ref:sup-fig-bm-threshold) **Selection of probability threshold for DA benchmarking.** Mean True Positive Rate (left) and False Discovery Rate (right) for recovery of cells in simulated DA regions as a function of probability threshold $t$ picked to define true DA. The dashed line indicates $t = 0.6$, that was selected for benchmarking analyses. The mean is calculated over simulations on 8 populations. Line shading indicates the standard deviation of the mean. -->
+
+
 ```{r sup-fig-bm-threshold,  fig.cap="(ref:sup-fig-bm-threshold)", echo=FALSE}
-knitr::include_graphics("suppl_figs/suppl_fig_bm_threshold.pdf", auto_pdf = TRUE)
+knitr::include_graphics("suppl_figs/suppl_fig_pC1_histograms.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig-bm-threshold) **Selection of probability threshold for DA benchmarking.** Mean True Positive Rate (left) and False Discovery Rate (right) for recovery of cells in simulated DA regions as a function of probability threshold $t$ picked to define true DA. The dashed line indicates $t = 0.6$, that was selected for benchmarking analyses. The mean is calculated over simulations on 8 populations. Line shading indicates the standard deviation of the mean.
+(ref:sup-fig-bm-threshold) **Selection of probability threshold to define ground-truth DA regions** 
+(A) Histograms of P(C1) for cells from _all_ the simulations for each continuous dataset topology. The dotted lines indicate 25%, 50%, 75%, 90% and 95% quantiles. The red dotted line indicates the 75% quantile, that was chosen as the threshold $t$ to define the DA region. The value of the threshold $t$ is indicated in red.
+(B) Histograms of P(C1) for cells predicted to be in DA regions by different methods in _all_ the simulations on datasets of different topologies. Cells are split by the predicted direction of the effect inferred by DA methods, where NegLFC indicates predicted negative log-fold change (true positives) and PosLFC indicates predicted positive log-Fold Change (false positives). The dotted line indicates the threshold used to define the true DA region, corresponding to the 75% quantile of all P(C1) values.
+
 
 ```{r sup-fig-bm-simulations,  fig.cap="(ref:sup-fig-bm-simulations)",  out.width = "500px", echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_bm_simulations.pdf", auto_pdf = TRUE)
@@ -62,7 +72,9 @@ knitr::include_graphics("suppl_figs/suppl_fig_bm_simulations.pdf", auto_pdf = TR
 knitr::include_graphics("suppl_figs/suppl_fig_signal2noise.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig-bm-signal) **Variability in Milo power is explained by the fraction of true positive cells close to DA threshold.** Example distributions of underlying probability of Condition 1 (P(C1)) for cells detected as True Positives (TP) or False Negatives (FN) by Milo. Examples for simulations on 2 populations (rows) and 3 simulated fold changes (columns) are shown. 
+(ref:sup-fig-bm-signal) **Sensitivity of DA methods to low fold change in abundance**
+(A) True positive rate (TPR, top) and false positive rate (FPR, bottom) of DA methods calculated on cells in different bins of P(C1) used to generate condition labels (bin size = 0.05, the number on the x-axis indicates the lower value in the bin). The results for 36 simulations on 2 representative populations (colors) are shown. The filled points indicate the mean of each P(C1) bin.
+(B) Variability in Milo power is explained by the fraction of true positive cells close to the DA threshold for definition of ground truth. Example distributions of P(C1) for cells detected as true positives (TP) or false negatives (FN) by Milo. Examples for simulations on 2 populations (rows) and 3 simulated fold changes (columns) are shown. 
 
 
 ```{r sup-fig-bm-size,  fig.cap="(ref:sup-fig-bm-size)",  out.width = "500px", echo=FALSE}
@@ -76,7 +88,7 @@ knitr::include_graphics("suppl_figs/suppl_fig_bm_size.pdf", auto_pdf = TRUE)
 knitr::include_graphics("suppl_figs/suppl_fig_meldVSmilo.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig-bm-meld) **Comparison of Milo and MELD for abundance fold-change estimation.** (A-D) Scatter-plots of the true fold-change at the neighbourhood index against the fold-change estimated by Milo (A,C) and MELD (B,D), without batch effect (A-B) and with batch effect (magnitude = 0.5) (C-D), where $LFC = log(p_{c'}/(1 - p_{c'}))$. The neighbourhoods overlapping true DA cells ($p_{c'}>0.6$) are highlighted in red. (E-F) Mean Squared Error (MSE) comparison for MELD and Milo for true negative neighbourhood (E) and true positive neighbourhoods (F), with increasing simulated log-Fold Change and magnitude of batch effect.
+(ref:sup-fig-bm-meld) **Comparison of Milo and MELD for abundance fold change estimation.** (A-D) Scatter-plots of the true fold change at the neighbourhood index against the fold change estimated by Milo (A,C) and MELD (B,D), without batch effect (A-B) and with batch effect (magnitude = 0.5) (C-D), where $LFC = log(p_{c'}/(1 - p_{c'}))$. The neighbourhoods overlapping true DA cells ($p_{c'}$ greater than the 75% quantile of P(C1) in the mouse gastrulation dataset) are highlighted in red. (E-F) Mean Squared Error (MSE) comparison for MELD and Milo for true negative neighbourhood (E) and true positive neighbourhoods (F), with increasing simulated log-Fold Change and magnitude of batch effect.
 
 ```{r sup-fig-msek,  fig.cap="(ref:sup-fig-msek)", echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_MSE-k_vs_replicates.pdf", auto_pdf = TRUE)
@@ -102,7 +114,7 @@ knitr::include_graphics("suppl_figs/suppl_fig_bm_batch.pdf", auto_pdf = TRUE)
 knitr::include_graphics("suppl_figs/suppl_fig_bm_design.pdf", auto_pdf = TRUE)
 ```
 
-(ref:sup-fig-bm-design) **Modelling batch effects in DA analysis with Milo.** Comparison of Milo performance with (~ batch + condition) or without (~ condition) accounting for the simulated batch in the GLM. For each boxplot, results from 8 populations, simulated fold change > 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot).
+(ref:sup-fig-bm-design) **Regressing out the batch covariate in NB-GLM testing leads to improved performance of Milo in the presence of batch effects** Comparison of Milo performance _with_ (~ batch + condition) or _without_ (~ condition) accounting for the simulated batch in the NB-GLM. For each boxplot, results from 8 populations, simulated fold change > 1.5 and 3 condition simulations per population and fold change are shown (72 simulations per boxplot).
 
 ```{r sup-fig-scalability,  fig.cap="(ref:sup-fig-scalability)",   out.width = "500px",echo=FALSE}
 knitr::include_graphics("suppl_figs/suppl_fig_memory.pdf", auto_pdf = TRUE)
